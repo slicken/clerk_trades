@@ -10,11 +10,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
 
-var links []string
+var (
+	links []string
+)
 
 func usage(code int) {
 	fmt.Printf(`CLERK TRADES - U.S. Government Official Financial Report Tracker
@@ -37,8 +40,10 @@ func main() {
 
 	// add os.Args loop to capture args
 
-	links, _ = utils.ReadJSON[[]string]("links.json")
+	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
 	log.Printf("loaded %d reports.\n", len(links))
+	gemini.Trades, _ = utils.ReadJSON[[]gemini.Trade](gemini.FILE_TRADES)
+	log.Printf("loaded %d trades.\n", len(gemini.Trades))
 
 	// --
 
@@ -111,17 +116,25 @@ func checkReports() error {
 			log.Printf("Failed to fetch content for file %s: %v", file, err)
 			continue
 		}
+		log.Printf("saved %s to memory\n", filepath.Base(file))
 		fileContents = append(fileContents, content)
 	}
 
 	// Process the reports with the contents stored in memory
-	gemini.ProsessRapports(fileContents, files)
-	return err
+	return gemini.ProsessRapports(fileContents, files)
 }
 
-// fetchFileContent retrieves the content of a file from a link
 func fetchFileContent(link string) ([]byte, error) {
-	resp, err := http.Get(link)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", link, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set User-Agent to mimic Google Chrome
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -131,10 +144,5 @@ func fetchFileContent(link string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to fetch file: %s", resp.Status)
 	}
 
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return content, nil
+	return io.ReadAll(resp.Body)
 }

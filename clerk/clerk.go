@@ -15,6 +15,8 @@ const (
 	URL    = "https://disclosures-clerk.house.gov/"
 	SEARCH = "FinancialDisclosure#Search"
 	pass   = "financial-pdfs"
+
+	FILE_LINKS = "links.json"
 )
 
 var newLinks []string
@@ -138,11 +140,11 @@ func SearchSite(links []string) ([]string, error) {
 		}
 	}
 
-	err = utils.WriteJSON[[]string]("links.json", links)
+	err = utils.WriteJSON[[]string](FILE_LINKS, links)
 	if err != nil {
 		return links, err
 	}
-	log.Printf("updated %q, contains %d reports.\n", "links.json", len(links))
+	log.Printf("updated %q, contains %d reports.\n", FILE_LINKS, len(links))
 
 	// return only new links, if any
 	if len(newLinks) > 0 {

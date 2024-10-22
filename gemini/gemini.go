@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"clerk_trades/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,21 +14,24 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Define a struct to hold the JSON data
+const FILE_TRADES = "trades.json"
+
 type Trade struct {
 	Name   string `json:"Name"`
 	Asset  string `json:"Asset"`
 	Ticker string `json:"Ticker"`
 	Type   string `json:"Type"`
 	Date   string `json:"Date"`
-	Filed  string `json:"Filed`
+	Filed  string `json:"Filed"`
 	Amount string `json:"Amount"`
 	Cap    bool   `json:"Cap"`
 }
 
-var Trades []Trade
+var (
+	Trades    []Trade
+	newTrades []Trade
+)
 
-// ProsessRapports now accepts byte slices instead of file paths
 func ProsessRapports(fileContents [][]byte, links []string) error {
 	ctx := context.Background()
 
@@ -44,7 +48,6 @@ func ProsessRapports(fileContents [][]byte, links []string) error {
 
 	var aiFiles []*genai.File
 
-	// Assuming you have a way to retrieve the original links
 	for i, content := range fileContents {
 		link := links[i]
 		_, fileName := filepath.Split(link)
@@ -76,7 +79,7 @@ func ProsessRapports(fileContents [][]byte, links []string) error {
 			}
 		}(filepath.Join(os.TempDir(), fileName))
 
-		log.Printf("uploaded %s\n", filepath.Join(os.TempDir(), fileName))
+		log.Printf("uploaded %s\n", fileName)
 	}
 
 	log.Printf("generating trade reports... ")
@@ -118,21 +121,19 @@ Rules: for Transaction Type: if "P" input "Purchase", if "S" input "Sale"
 
 	out := getResponse(resp)
 
-	if err := json.Unmarshal([]byte(out), &Trades); err != nil {
+	if err := json.Unmarshal([]byte(out), &newTrades); err != nil {
 		return fmt.Errorf("error unmarshalling JSON: %v, Output: %s", err, out)
 	}
 
-	log.Printf("last %d trades:\n", len(Trades))
+	log.Printf("found %d trades in %d reports:\n", len(newTrades), len(links))
 
-	tradesJSON, err := json.MarshalIndent(Trades, "", "  ")
+	tradesJSON, err := json.MarshalIndent(newTrades, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal trades to JSON: %v", err)
+		return fmt.Errorf("failed to marshal new trades to JSON: %v", err)
 	}
-
-	// Print only the structured JSON output
 	fmt.Println(string(tradesJSON))
 
-	return nil
+	return addWriteTrades(newTrades)
 }
 
 func getResponse(resp *genai.GenerateContentResponse) string {
@@ -145,4 +146,31 @@ func getResponse(resp *genai.GenerateContentResponse) string {
 		}
 	}
 	return str
+}
+
+func addWriteTrades(newTrades []Trade) error {
+	added := 0
+
+	for _, newTrade := range newTrades {
+		isUnique := true
+		for _, existingTrade := range Trades {
+			if newTrade == existingTrade {
+				isUnique = false
+				break
+			}
+		}
+		if isUnique {
+			Trades = append(Trades, newTrade)
+			added++
+		}
+	}
+
+	if err := utils.WriteJSON(FILE_TRADES, Trades); err != nil {
+		return fmt.Errorf("failed to write unique trades to JSON: %w", err)
+	}
+	if added > 0 {
+		log.Printf("updated %s with %d new trades.\n", FILE_TRADES, added)
+	}
+
+	return nil
 }
