@@ -21,7 +21,7 @@ func usage(code int) {
 Usage: %s [<num>] [<false|off>]
 
 [Optional]
-  integer           List trades from last [num] reports
+  num               List trades from last [num] reports
   false, off        Disable site scrape and exit after it printing trades
   help, -h, --help  Display this help menu
 `, os.Args[0])
@@ -34,7 +34,9 @@ func main() {
 			usage(1)
 		}
 	}
-	usage(1)
+
+	// add os.Args loop to capture args
+
 	links, _ = utils.ReadJSON[[]string]("links.json")
 	log.Printf("loaded %d reports.\n", len(links))
 
@@ -65,6 +67,8 @@ func main() {
 	if len(os.Args) > 2 {
 		if os.Args[2] == "false" || os.Args[2] == "off" {
 			return
+		} else {
+			usage(1)
 		}
 	}
 
