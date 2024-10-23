@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
@@ -82,7 +83,6 @@ func SearchSite(links []string) ([]string, error) {
 	}
 
 	// loop throu all pages and look for new entries
-
 	log.Printf("looking for new reports on %d pages of financial documents...\n", pageCount)
 	for n := 1; n <= pageCount; n++ {
 		if _, err := page.WaitForSelector(`#DataTables_Table_0 tbody tr`, playwright.PageWaitForSelectorOptions{
@@ -140,6 +140,12 @@ func SearchSite(links []string) ([]string, error) {
 		}
 	}
 
+	// cocurrently - does not work
+	// links, newLinks, err := scrapePagesConcurrently(page, pageCount, pass, links)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("scrapePage: %v", err)
+	// }
+
 	err = utils.WriteJSON[[]string](FILE_LINKS, links)
 	if err != nil {
 		return links, err
@@ -152,4 +158,85 @@ func SearchSite(links []string) ([]string, error) {
 	}
 	// or old links
 	return links, nil
+}
+
+func scrapePagesConcurrently(page playwright.Page, pageCount int, pass string, links []string) ([]string, []string, error) {
+	var newLinks []string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for n := 1; n <= pageCount; n++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+
+			// Wait for the table rows to be visible
+			if _, err := page.WaitForSelector(`#DataTables_Table_0 tbody tr`, playwright.PageWaitForSelectorOptions{
+				State: playwright.WaitForSelectorStateVisible,
+			}); err != nil {
+				fmt.Printf("could not wait for table rows on page %d: %v\n", n, err)
+				return
+			}
+
+			// Query the rows
+			rows, err := page.QuerySelectorAll(`#DataTables_Table_0 tbody tr`)
+			if err != nil {
+				fmt.Printf("could not query table rows on page %d: %v\n", n, err)
+				return
+			}
+
+			for _, row := range rows {
+				linkElement, err := row.QuerySelector(`td.memberName a`)
+				if err != nil {
+					fmt.Printf("could not find link in row on page %d: %v\n", n, err)
+					continue
+				}
+
+				href, err := linkElement.GetAttribute("href")
+				if err != nil {
+					fmt.Printf("could not get href attribute on page %d: %v\n", n, err)
+					continue
+				}
+
+				if href == "" || strings.Contains(href, pass) {
+					continue
+				}
+
+				// Check if the link is new
+				mu.Lock()
+				if !utils.Contains(links, URL+href) {
+					links = append(links, URL+href)
+					newLinks = append(newLinks, URL+href)
+					fmt.Println(URL + href)
+				}
+				mu.Unlock()
+			}
+
+			// Handle pagination
+			paginationButtons, err := page.QuerySelectorAll(`.paginate_button:not(.ellipsis):not(.next)`)
+			if err != nil {
+				fmt.Printf("could not find pagination buttons on page %d: %v\n", n, err)
+				return
+			}
+
+			for _, button := range paginationButtons {
+				buttonText, err := button.InnerText()
+				if err != nil {
+					fmt.Printf("could not get button text on page %d: %v\n", n, err)
+					continue
+				}
+
+				if buttonText == fmt.Sprintf("%d", n+1) {
+					if err := button.Click(); err != nil {
+						fmt.Printf("could not click next page button on page %d: %v\n", n, err)
+					}
+					break
+				}
+			}
+			time.Sleep(100 * time.Microsecond)
+		}(n)
+	}
+
+	wg.Wait()
+	return links, newLinks, nil
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -109,16 +110,38 @@ func checkReports() error {
 	}
 
 	// Store content in memory
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	var fileContents [][]byte
 	for _, file := range files {
-		content, err := fetchFileContent(file)
-		if err != nil {
-			log.Printf("Failed to fetch content for file %s: %v", file, err)
-			continue
-		}
-		log.Printf("saved %s to memory\n", filepath.Base(file))
-		fileContents = append(fileContents, content)
+		// content, err := fetchFileContent(file)
+		// if err != nil {
+		// 	log.Printf("Failed to fetch content for file %s: %v", file, err)
+		// 	continue
+		// }
+		// log.Printf("saved %s to memory\n", filepath.Base(file))
+		// fileContents = append(fileContents, content)
+
+		// test concurrent code
+		wg.Add(1)
+		go func(file string) {
+			defer wg.Done()
+
+			content, err := fetchFileContent(file)
+			if err != nil {
+				log.Printf("Failed to fetch content for file %s: %v", file, err)
+				return
+			}
+
+			log.Printf("saved %s to memory\n", filepath.Base(file))
+
+			mu.Lock()
+			fileContents = append(fileContents, content)
+			mu.Unlock()
+		}(file)
 	}
+
+	wg.Wait()
 
 	// Process the reports with the contents stored in memory
 	return gemini.ProsessRapports(fileContents, files)

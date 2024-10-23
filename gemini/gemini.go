@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -46,42 +47,46 @@ func ProsessRapports(fileContents [][]byte, links []string) error {
 	}
 	defer client.Close()
 
-	var aiFiles []*genai.File
+	// var aiFiles []*genai.File
 
-	for i, content := range fileContents {
-		link := links[i]
-		_, fileName := filepath.Split(link)
+	// for i, content := range fileContents {
+	// 	link := links[i]
+	// 	_, fileName := filepath.Split(link)
 
-		tmpFile, err := ioutil.TempFile(os.TempDir(), "")
-		if err != nil {
-			return fmt.Errorf("failed to create temp file: %v", err)
-		}
+	// 	tmpFile, err := ioutil.TempFile(os.TempDir(), "")
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to create temp file: %v", err)
+	// 	}
 
-		if _, err := tmpFile.Write(content); err != nil {
-			tmpFile.Close()
-			return fmt.Errorf("failed to write to temp file: %v", err)
-		}
-		tmpFile.Close()
+	// 	if _, err := tmpFile.Write(content); err != nil {
+	// 		tmpFile.Close()
+	// 		return fmt.Errorf("failed to write to temp file: %v", err)
+	// 	}
+	// 	tmpFile.Close()
 
-		if err := os.Rename(tmpFile.Name(), filepath.Join(os.TempDir(), fileName)); err != nil {
-			return fmt.Errorf("failed to rename temp file: %v", err)
-		}
+	// 	if err := os.Rename(tmpFile.Name(), filepath.Join(os.TempDir(), fileName)); err != nil {
+	// 		return fmt.Errorf("failed to rename temp file: %v", err)
+	// 	}
 
-		uploadedFile, err := client.UploadFileFromPath(ctx, filepath.Join(os.TempDir(), fileName), nil)
-		if err != nil {
-			return fmt.Errorf("failed to upload file %d: %v", i, err)
-		}
-		aiFiles = append(aiFiles, uploadedFile)
+	// 	uploadedFile, err := client.UploadFileFromPath(ctx, filepath.Join(os.TempDir(), fileName), nil)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to upload file %d: %v", i, err)
+	// 	}
+	// 	aiFiles = append(aiFiles, uploadedFile)
 
-		defer func(filePath string) {
-			if err := os.Remove(filePath); err != nil {
-				log.Printf("failed to delete temp file %s: %v", filePath, err)
-			}
-		}(filepath.Join(os.TempDir(), fileName))
+	// 	defer func(filePath string) {
+	// 		if err := os.Remove(filePath); err != nil {
+	// 			log.Printf("failed to delete temp file %s: %v", filePath, err)
+	// 		}
+	// 	}(filepath.Join(os.TempDir(), fileName))
 
-		log.Printf("uploaded %s\n", fileName)
+	// 	log.Printf("uploaded %s\n", fileName)
+	// }
+
+	aiFiles, err := uploadFilesConcurrently(ctx, fileContents, links, client)
+	if err != nil {
+		return err
 	}
-
 	log.Printf("generating trade reports... ")
 
 	model := client.GenerativeModel("gemini-1.5-flash")
@@ -90,13 +95,13 @@ func ProsessRapports(fileContents [][]byte, links []string) error {
 	model.SetTopK(20)
 	model.ResponseMIMEType = "application/json"
 	model.SystemInstruction = genai.NewUserContent(genai.Text(`
-Application that reads data from JSON and writes into a JSON array of structs
-Rules: strip "Hon. " from Name
-Rules: for Transaction Type: if "P" input "Purchase", if "S" input "Sale"
+It should read data from the uploaded PDF file and write data into the JSON array described below with some rules.
+Rule1: Name can be obtained under Filer Information. Input First Name and Last Name only! Dont include "Hon.", "Mrs", "Mr", etc.
+Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "Sale".
 [
 	{
-		"Name": "input the Name under Filer Information",
-		"Asset": "input Asset fill name",
+		"Name": "input First Name and Last Name only",
+		"Asset": "input Full Asset Name",
 		"Ticker": "input Ticker for the Asset",
 		"Type": "input Transaction Type",
 		"Date": "input Date",
@@ -154,6 +159,8 @@ func addWriteTrades(newTrades []Trade) error {
 	for _, newTrade := range newTrades {
 		isUnique := true
 		for _, existingTrade := range Trades {
+			// add better loqic here since, names and stock name can differ.
+			// check data adn filing date adn type and size instead
 			if newTrade == existingTrade {
 				isUnique = false
 				break
@@ -173,4 +180,67 @@ func addWriteTrades(newTrades []Trade) error {
 	}
 
 	return nil
+}
+
+func uploadFilesConcurrently(ctx context.Context, fileContents [][]byte, links []string, client *genai.Client) ([]*genai.File, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	var aiFiles []*genai.File
+	errChan := make(chan error, len(fileContents))
+
+	for i, content := range fileContents {
+		wg.Add(1)
+		go func(i int, content []byte) {
+			defer wg.Done()
+
+			link := links[i]
+			_, fileName := filepath.Split(link)
+
+			tmpFile, err := ioutil.TempFile(os.TempDir(), "")
+			if err != nil {
+				errChan <- fmt.Errorf("failed to create temp file: %v", err)
+				return
+			}
+
+			if _, err := tmpFile.Write(content); err != nil {
+				tmpFile.Close()
+				errChan <- fmt.Errorf("failed to write to temp file: %v", err)
+				return
+			}
+			tmpFile.Close()
+
+			if err := os.Rename(tmpFile.Name(), filepath.Join(os.TempDir(), fileName)); err != nil {
+				errChan <- fmt.Errorf("failed to rename temp file: %v", err)
+				return
+			}
+
+			uploadedFile, err := client.UploadFileFromPath(ctx, filepath.Join(os.TempDir(), fileName), nil)
+			if err != nil {
+				errChan <- fmt.Errorf("failed to upload file %d: %v", i, err)
+				return
+			}
+
+			mu.Lock()
+			aiFiles = append(aiFiles, uploadedFile)
+			mu.Unlock()
+
+			defer func(filePath string) {
+				if err := os.Remove(filePath); err != nil {
+					log.Printf("failed to delete temp file %s: %v", filePath, err)
+				}
+			}(filepath.Join(os.TempDir(), fileName))
+
+			log.Printf("uploaded %s\n", fileName)
+		}(i, content)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	if len(errChan) > 0 {
+		return nil, fmt.Errorf("errors occurred during upload: %v", <-errChan)
+	}
+
+	return aiFiles, nil
 }
