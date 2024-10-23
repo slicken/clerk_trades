@@ -159,9 +159,12 @@ func addWriteTrades(newTrades []Trade) error {
 	for _, newTrade := range newTrades {
 		isUnique := true
 		for _, existingTrade := range Trades {
-			// add better loqic here since, names and stock name can differ.
-			// check data adn filing date adn type and size instead
-			if newTrade == existingTrade {
+			if newTrade.Ticker == existingTrade.Ticker &&
+				newTrade.Type == existingTrade.Type &&
+				newTrade.Date == existingTrade.Date &&
+				newTrade.Filed == existingTrade.Filed &&
+				newTrade.Amount == existingTrade.Amount &&
+				newTrade.Cap == existingTrade.Cap {
 				isUnique = false
 				break
 			}
