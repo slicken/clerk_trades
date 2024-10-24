@@ -16,113 +16,117 @@ import (
 	"time"
 )
 
-var (
-	links []string
-)
+var links []string
 
 func usage(code int) {
 	fmt.Printf(`CLERK TRADES - U.S. Government Official Financial Report Tracker
-Usage: %s [<num>] [<false|off>]
+Usage: %s [<update_duration> | <list>]
 
-[Optional]
-  num               List trades from last [num] reports
-  false, off        Disable site scrape and exit after it printing trades
-  help, -h, --help  Display this help menu
+Arguments:
+  <update_duration>    Duration to update (e.g., 3h, 2m, 1s). If not provided,
+                       site scraping will be disabled.
+  <list>               Specify the number of reports to list trades from 
+                       (type=int). If this argument is used, the program 
+                       will exit after printing. (This value can not be 0)
+
+  help, -h, --help     Display this help menu.
 `, os.Args[0])
 	os.Exit(code)
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		if os.Args[1] == "-h" || os.Args[1] == "--help" || os.Args[1] == "help" {
-			usage(1)
+	var update time.Duration
+	var checkClerk bool = true
+	var numReports int
+
+	for _, v := range os.Args[1:] {
+		switch v {
+		case "help", "--help", "-h":
+			usage(0)
+		default:
+			if _, err := time.ParseDuration(v); err == nil {
+				update, _ = time.ParseDuration(v)
+			} else if n, err := strconv.Atoi(v); err == nil {
+				numReports = n
+			}
 		}
 	}
-
-	// add os.Args loop to capture args
-
+	if update == 0 && numReports == 0 {
+		usage(1)
+	}
+	if update == 0 {
+		checkClerk = false
+	}
+	// load stored links and trades
 	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
 	log.Printf("loaded %d reports.\n", len(links))
 	gemini.Trades, _ = utils.ReadJSON[[]gemini.Trade](gemini.FILE_TRADES)
 	log.Printf("loaded %d trades.\n", len(gemini.Trades))
 
-	// --
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ticker := time.NewTicker(12 * time.Hour)
-	defer ticker.Stop()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := checkReports(); err != nil {
-					log.Printf("Error: %v", err)
+	if update != 0 {
+		ticker := time.NewTicker(update)
+		defer ticker.Stop()
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if err := checkReports(numReports, checkClerk); err != nil {
+						log.Printf("Error: %v", err)
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
-	if err := checkReports(); err != nil {
+	if err := checkReports(numReports, checkClerk); err != nil {
 		log.Printf("Error: %v", err)
 	}
 
-	if len(os.Args) > 2 {
-		if os.Args[2] == "false" || os.Args[2] == "off" {
-			return
-		} else {
-			usage(1)
-		}
+	if !checkClerk {
+		return
 	}
 
 	select {}
 }
 
-func checkReports() error {
+func checkReports(numReports int, checkClerk bool) error {
 	var err error
 	var files []string
 
-	if len(os.Args) > 2 {
-		if os.Args[2] == "false" || os.Args[2] == "off" {
-			log.Println("clerk disabled")
-			files = links
-		}
-	} else {
-		files, err = clerk.SearchSite(links)
+	if checkClerk {
+		log.Println("scraping clerk site for new reports.")
+		files, err = clerk.SiteScrape(links)
 		if err != nil {
 			return err
 		}
+	} else {
+		log.Println("disabled clerk site scraper.")
+		files = links
 	}
 
-	numFiles := len(links)
-	if len(os.Args) > 1 {
-		numFiles, err = strconv.Atoi(os.Args[1])
-		if err != nil {
-			log.Fatalf("Invalid number of files: %v", err)
+	if numReports > 0 {
+		if len(files) > numReports {
+			files = files[len(files)-numReports:] // Keep only the last numReports files
 		}
 	}
 
-	if len(files) > numFiles {
-		files = files[len(files)-numFiles:]
-	}
-
-	// Store content in memory
+	fmt.Println("---")
+	fmt.Println("checkClerk", checkClerk)
+	fmt.Println("numReport", numReports)
+	fmt.Println("files:", len(files))
+	fmt.Println("---")
+	// store content concurrently in memory
+	var fileContents [][]byte
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var fileContents [][]byte
 	for _, file := range files {
-		// content, err := fetchFileContent(file)
-		// if err != nil {
-		// 	log.Printf("Failed to fetch content for file %s: %v", file, err)
-		// 	continue
-		// }
-		// log.Printf("saved %s to memory\n", filepath.Base(file))
-		// fileContents = append(fileContents, content)
 
-		// test concurrent code
 		wg.Add(1)
 		go func(file string) {
 			defer wg.Done()
@@ -133,7 +137,7 @@ func checkReports() error {
 				return
 			}
 
-			log.Printf("saved %s to memory\n", filepath.Base(file))
+			log.Printf("stored %s in memory\n", filepath.Base(file))
 
 			mu.Lock()
 			fileContents = append(fileContents, content)
@@ -142,8 +146,9 @@ func checkReports() error {
 	}
 
 	wg.Wait()
-
-	// Process the reports with the contents stored in memory
+	if len(fileContents) == 0 {
+		return nil
+	}
 	return gemini.ProsessRapports(fileContents, files)
 }
 
@@ -153,8 +158,7 @@ func fetchFileContent(link string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Set User-Agent to mimic Google Chrome
+	// set User-Agent to mimic Google Chrome
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
 	resp, err := client.Do(req)

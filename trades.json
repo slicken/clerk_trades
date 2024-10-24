@@ -100,123 +100,23 @@
     "Cap": false
   },
   {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill 3-Month (Matures 1/16/25)",
-    "Ticker": "GS",
+    "Name": "Jane Doe",
+    "Asset": "Apple Inc.",
+    "Ticker": "AAPL",
     "Type": "Purchase",
-    "Date": "10/15/2024",
-    "Filed": "10/15/2024",
-    "Amount": "15,001 - 50,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill 4-Week (Matures 11/12/24)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "10/15/2024",
-    "Filed": "10/15/2024",
-    "Amount": "50,001 - 100,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill (4-Week, Matures 8/27/2024)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "07/30/2024",
-    "Filed": "07/30/2024",
-    "Amount": "15,001 - 50,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill (1-Month, Matures 7/23/2024)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "06/25/2024",
-    "Filed": "06/25/2024",
-    "Amount": "15,001 - 50,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill 6-Month (Matures 3/27/25)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "09/26/2024",
-    "Filed": "09/26/2024",
-    "Amount": "1,001 - 15,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill 4-Week (Matures 10/8/24)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "09/10/2024",
-    "Filed": "09/10/2024",
-    "Amount": "50,001 - 100,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill 6-Months (Matures 3/6/25)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "09/05/2024",
-    "Filed": "09/05/2024",
-    "Amount": "1,001 - 15,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Treasury Bill (4-Week, Matures 6/18/2024)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "05/21/2024",
-    "Filed": "05/21/2024",
-    "Amount": "15,001 - 50,000",
-    "Cap": false
-  },
-  {
-    "Name": "Rudy Yakym III",
-    "Asset": "Tresury Bill (3-Month, Matures 10/10/2024)",
-    "Ticker": "GS",
-    "Type": "Purchase",
-    "Date": "07/11/2024",
-    "Filed": "07/11/2024",
-    "Amount": "15,001 - 50,000",
-    "Cap": false
-  },
-  {
-    "Name": "Virginia Foxx",
-    "Asset": "Ellington Financial Inc. Common Stock (EFC)",
-    "Ticker": "EFC",
-    "Type": "Purchase",
-    "Date": "09/30/2024",
-    "Filed": "10/15/2024",
-    "Amount": "1,001 - 15,000",
-    "Cap": false
-  },
-  {
-    "Name": "Richard W. Allen",
-    "Asset": "Charles Schwab Corporation (SCHW)",
-    "Ticker": "SCHW",
-    "Type": "Sale",
-    "Date": "09/12/2024",
-    "Filed": "10/14/2024",
-    "Amount": "15,001 - 50,000",
-    "Cap": false
-  },
-  {
-    "Name": "Richard W. Allen",
-    "Asset": "US Treasury Bill 912797HP5",
-    "Ticker": "GS",
-    "Type": "Sale",
-    "Date": "09/13/2024",
-    "Filed": "10/14/2024",
-    "Amount": "100,001 - 250,000",
+    "Date": "2023-03-15",
+    "Filed": "2023-03-18",
+    "Amount": "1000",
     "Cap": true
+  },
+  {
+    "Name": "John Smith",
+    "Asset": "Microsoft Corporation",
+    "Ticker": "MSFT",
+    "Type": "Sale",
+    "Date": "2023-03-16",
+    "Filed": "2023-03-19",
+    "Amount": "500",
+    "Cap": false
   }
 ]
