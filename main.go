@@ -116,11 +116,6 @@ func checkReports(numReports int, checkClerk bool) error {
 		}
 	}
 
-	fmt.Println("---")
-	fmt.Println("checkClerk", checkClerk)
-	fmt.Println("numReport", numReports)
-	fmt.Println("files:", len(files))
-	fmt.Println("---")
 	// store content concurrently in memory
 	var fileContents [][]byte
 	var wg sync.WaitGroup
