@@ -76,7 +76,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 		})
 	}
 
-	log.Printf("generating trade reports...")
+	log.Printf("generating trade report...")
 
 	resp, err := model.GenerateContent(ctx, parts...)
 	if err != nil {
@@ -89,7 +89,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 		return fmt.Errorf("error unmarshalling JSON: %v, Output: %s", err, out)
 	}
 
-	log.Printf("found %d trades in %d reports:\n", len(newTrades), len(links))
+	// log.Printf("%d trades in %d reports:\n", len(newTrades), len(links))
 
 	tradesJSON, err := json.MarshalIndent(newTrades, "", "  ")
 	if err != nil {
@@ -97,7 +97,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 	}
 	fmt.Println(string(tradesJSON))
 
-	return addWriteTrades(newTrades)
+	return addNewTrades(newTrades)
 }
 
 func getResponse(resp *genai.GenerateContentResponse) string {
@@ -112,7 +112,7 @@ func getResponse(resp *genai.GenerateContentResponse) string {
 	return str
 }
 
-func addWriteTrades(newTrades []Trade) error {
+func addNewTrades(newTrades []Trade) error {
 	added := 0
 
 	for _, newTrade := range newTrades {

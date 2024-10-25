@@ -23,11 +23,13 @@ func usage(code int) {
 Usage: %s [<update_duration> | <list>]
 
 Arguments:
-  <update_duration>    Duration to update (e.g., 3h, 2m, 1s). If not provided,
-                       site scraping will be disabled.
-  <list>               Specify the number of reports to list trades from 
-                       (type=int). If this argument is used, the program 
-                       will exit after printing. (This value can not be 0)
+  <update_duration>    Clerk site scrape duration, min 1h (e.g. 12h, 1d).
+                       If not provided, site scraping will be disabled.
+  <list>               Specify the number of reports to list their trades.
+                       (type=int). This argument must be greater than 0.
+                       If used, the program will exit after printing.
+
+Note: Only one argument may be provided at a time.
 
   help, -h, --help     Display this help menu.
 `, os.Args[0])
@@ -36,8 +38,7 @@ Arguments:
 
 func main() {
 	var update time.Duration
-	var checkClerk bool = true
-	var numReports int
+	var listReports int
 
 	for _, v := range os.Args[1:] {
 		switch v {
@@ -47,26 +48,28 @@ func main() {
 			if _, err := time.ParseDuration(v); err == nil {
 				update, _ = time.ParseDuration(v)
 			} else if n, err := strconv.Atoi(v); err == nil {
-				numReports = n
+				listReports = n
 			}
 		}
 	}
-	if update == 0 && numReports == 0 {
+	if update == 0 && listReports == 0 || update != 0 && listReports != 0 {
 		usage(1)
 	}
-	if update == 0 {
-		checkClerk = false
-	}
+	// fmt.Println("update", update)
+	// fmt.Println("listReports", listReports)
+	// os.Exit(0)
 	// load stored links and trades
 	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
 	log.Printf("loaded %d reports.\n", len(links))
 	gemini.Trades, _ = utils.ReadJSON[[]gemini.Trade](gemini.FILE_TRADES)
 	log.Printf("loaded %d trades.\n", len(gemini.Trades))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	if update != 0 {
+		log.Printf("checking for new reports every %v.\n", update)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		ticker := time.NewTicker(update)
 		defer ticker.Stop()
 
@@ -76,7 +79,7 @@ func main() {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					if err := checkReports(numReports, checkClerk); err != nil {
+					if err := checkReports(update, listReports); err != nil {
 						log.Printf("Error: %v", err)
 					}
 				}
@@ -84,35 +87,34 @@ func main() {
 		}()
 	}
 
-	if err := checkReports(numReports, checkClerk); err != nil {
+	if err := checkReports(update, listReports); err != nil {
 		log.Printf("Error: %v", err)
 	}
 
-	if !checkClerk {
+	if update == 0 {
 		return
 	}
 
 	select {}
 }
 
-func checkReports(numReports int, checkClerk bool) error {
+func checkReports(update time.Duration, listReports int) error {
 	var err error
 	var files []string
 
-	if checkClerk {
-		log.Println("scraping clerk site for new reports.")
+	if update != 0 {
+		log.Println("checking for new reports.")
 		files, err = clerk.SiteScrape(links)
 		if err != nil {
 			return err
 		}
 	} else {
-		log.Println("disabled clerk site scraper.")
 		files = links
 	}
 
-	if numReports > 0 {
-		if len(files) > numReports {
-			files = files[len(files)-numReports:] // Keep only the last numReports files
+	if listReports > 0 {
+		if len(files) > listReports {
+			files = files[len(files)-listReports:] // Keep only the last listReports files
 		}
 	}
 
