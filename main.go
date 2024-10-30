@@ -24,8 +24,9 @@ func usage(code int) {
 Usage: %s [<update_duration> | <list>] [OPTIONS]
 
 Arguments:
-  update_duration    Clerk site scrape duration, min 1h (e.g. 12h, 1d).
-                     If not provided, site scraping will be disabled.
+  update_duration    Duration for scraping the Clerk site, minimum 1 hour (e.g., 6h, 1d, 3d).
+                     Only accepts 'h' for hours or 'd' for days before the integer.
+                     If not specified, site scraping will be disabled.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be greater than 0.
                      If used, the program will exit after printing.
@@ -73,8 +74,10 @@ func main() {
 		case v == "--verbose" || v == "-v" || v == "verbose":
 			verbose = true
 		default:
-			if _, err := time.ParseDuration(v); err == nil {
-				update, _ = time.ParseDuration(v)
+			if duration, err := parseCustomDuration(v); err != nil {
+				log.Fatalln(err)
+			} else if err == nil {
+				update = duration
 			} else if n, err := strconv.Atoi(v); err == nil {
 				listReports = n
 			}
@@ -242,4 +245,19 @@ func fetchFileContent(link string) ([]byte, error) {
 	}
 
 	return io.ReadAll(resp.Body)
+}
+
+func parseCustomDuration(input string) (time.Duration, error) {
+	if strings.HasSuffix(input, "h") {
+		hours := strings.TrimSuffix(input, "h")
+		if n, err := strconv.Atoi(hours); err == nil {
+			return time.Duration(n) * time.Hour, nil
+		}
+	} else if strings.HasSuffix(input, "d") {
+		days := strings.TrimSuffix(input, "d")
+		if n, err := strconv.Atoi(days); err == nil {
+			return time.Duration(n) * 24 * time.Hour, nil
+		}
+	}
+	return 0, fmt.Errorf("invalid duration format; only hours (h) and days (d) are accepted")
 }

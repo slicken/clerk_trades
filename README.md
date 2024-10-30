@@ -12,8 +12,9 @@ CLERK TRADES - U.S. Government Official Financial Report Tracker
 Usage: ./app [<update_duration> | <list>]
 
 Arguments:
-  update_duration    Clerk site scrape duration, min 1h (e.g. 12h, 1d).
-                     If not provided, site scraping will be disabled.
+  update_duration    Duration for scraping the Clerk site, minimum 1 hour (e.g., 6h, 1d, 3d).
+                     Only accepts 'h' for hours or 'd' for days before the integer.
+                     If not specified, site scraping will be disabled.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be greater than 0.
                      If used, the program will exit after printing.
