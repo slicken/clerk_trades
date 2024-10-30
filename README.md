@@ -9,12 +9,20 @@ CLERK TRADES - U.S. Government Official Financial Report Tracker
 Usage: ./app [<update_duration> | <list>]
 
 Arguments:
-  <update_duration>    Duration to update (e.g., 3h, 2m, 1s). If not provided,
-                       site scraping will be disabled.
-  <list>               Specify the number of reports to list trades from 
-                       (type=int). If this argument is used, the program 
-                       will exit after printing. (This value can not be 0)
+  update_duration    Clerk site scrape duration, min 1h (e.g. 12h, 1d).
+                     If not provided, site scraping will be disabled.
+  list               Specify the number of reports to list their trades.
+                     (type=int). This argument must be greater than 0.
+                     If used, the program will exit after printing.
 
-  help, -h, --help     Display this help menu.
+Note: Only one of these two arguments may be provided at a time.
+
+OPTIONS:
+  -e=<your@email.com>, --email=<your@email.com>
+                     Email trades result to specified email address.
+                     You will recive a email first where you must give mailgun
+                     permission to send email to email adress.
+  -v, --verbose      Enable verbose output for detailed logging and information.
+  -h, --help         Display this help menu.
 ```
 

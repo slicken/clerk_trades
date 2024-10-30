@@ -28,19 +28,24 @@ type Trade struct {
 var (
 	Trades    []Trade
 	newTrades []Trade
+	verbose   bool
 )
 
-func ProsessRapports(fileContents [][]byte, links []string) error {
+func SetVerbose(v bool) {
+	verbose = v
+}
+
+func ProsessReports(fileContents [][]byte, links []string) (string, error) {
 	ctx := context.Background()
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("environment variable GEMINI_API_KEY not set")
+		log.Fatalln("environment variable GEMINI_API_KEY not set")
 	}
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return fmt.Errorf("error creating client: %v", err)
+		return "", fmt.Errorf("error creating client: %v", err)
 	}
 	defer client.Close()
 
@@ -80,31 +85,35 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 
 	resp, err := model.GenerateContent(ctx, parts...)
 	if err != nil {
-		return fmt.Errorf("failed to generate content: %v", err)
+		return "", fmt.Errorf("failed to generate content: %v", err)
 	}
 
 	out := getResponse(resp)
-
+	if len(out) == 0 {
+		return "", fmt.Errorf("no output data from gemini.\n")
+	}
 	if err := json.Unmarshal([]byte(out), &newTrades); err != nil {
-		return fmt.Errorf("error unmarshalling JSON: %v, Output: %s", err, out)
+		return "", fmt.Errorf("error unmarshalling JSON: %v, Output: %s", err, out)
 	}
 
-	// log.Printf("%d trades in %d reports:\n", len(newTrades), len(links))
+	// print new trades to stdout
+	strTrades := PrintTrades(newTrades)
+	fmt.Println(strTrades)
 
-	tradesJSON, err := json.MarshalIndent(newTrades, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal new trades to JSON: %v", err)
+	if verbose {
+		utils.GrayPrintf("%d trades in %d reports.\n", len(newTrades), len(links))
 	}
-	fmt.Println(string(tradesJSON))
 
-	return addNewTrades(newTrades)
+	err = addNewTrades(newTrades)
+
+	return strTrades, err
 }
 
 func getResponse(resp *genai.GenerateContentResponse) string {
 	var str string
-	for _, cand := range resp.Candidates {
-		if cand.Content != nil {
-			for _, part := range cand.Content.Parts {
+	for _, c := range resp.Candidates {
+		if c.Content != nil {
+			for _, part := range c.Content.Parts {
 				str += fmt.Sprint(part)
 			}
 		}
@@ -113,7 +122,7 @@ func getResponse(resp *genai.GenerateContentResponse) string {
 }
 
 func addNewTrades(newTrades []Trade) error {
-	added := 0
+	var add int
 
 	for _, newTrade := range newTrades {
 		isUnique := true
@@ -130,16 +139,37 @@ func addNewTrades(newTrades []Trade) error {
 		}
 		if isUnique {
 			Trades = append(Trades, newTrade)
-			added++
+			add++
 		}
+	}
+
+	if add == 0 {
+		if verbose {
+			utils.GrayPrintf("no new trades.\n")
+		}
+		return nil
 	}
 
 	if err := utils.WriteJSON(FILE_TRADES, Trades); err != nil {
 		return fmt.Errorf("failed to write unique trades to JSON: %w", err)
 	}
-	if added > 0 {
-		log.Printf("updated %s with %d new trades.\n", FILE_TRADES, added)
-	}
+	log.Printf("updated %s with %d new trades.\n", FILE_TRADES, add)
 
 	return nil
+}
+
+func PrintTrades(trades []Trade) string {
+	output := "\n"
+	for _, trade := range trades {
+		output += fmt.Sprintf("Name:    %-20s\n", trade.Name)
+		output += fmt.Sprintf("Asset:   %-20s\n", trade.Asset)
+		output += fmt.Sprintf("Ticker:  %-20s\n", trade.Ticker)
+		output += fmt.Sprintf("Type:    %-20s\n", trade.Type)
+		output += fmt.Sprintf("Date:    %-20s\n", trade.Date)
+		output += fmt.Sprintf("Filed:   %-20s\n", trade.Filed)
+		output += fmt.Sprintf("Amount:  %-20s\n", trade.Amount)
+		output += fmt.Sprintf("Cap:     %-20v\n", trade.Cap)
+		output += "\n"
+	}
+	return output
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"clerk_trades/clerk"
+	"clerk_trades/email"
 	"clerk_trades/gemini"
 	"clerk_trades/utils"
 	"context"
@@ -10,8 +11,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -20,30 +21,57 @@ var links []string
 
 func usage(code int) {
 	fmt.Printf(`CLERK TRADES - U.S. Government Official Financial Report Tracker
-Usage: %s [<update_duration> | <list>]
+Usage: %s [<update_duration> | <list>] [OPTIONS]
 
 Arguments:
-  <update_duration>    Clerk site scrape duration, min 1h (e.g. 12h, 1d).
-                       If not provided, site scraping will be disabled.
-  <list>               Specify the number of reports to list their trades.
-                       (type=int). This argument must be greater than 0.
-                       If used, the program will exit after printing.
+  update_duration    Clerk site scrape duration, min 1h (e.g. 12h, 1d).
+                     If not provided, site scraping will be disabled.
+  list               Specify the number of reports to list their trades.
+                     (type=int). This argument must be greater than 0.
+                     If used, the program will exit after printing.
 
-Note: Only one argument may be provided at a time.
+Note: Only one of these two arguments may be provided at a time.
 
-  help, -h, --help     Display this help menu.
+OPTIONS:
+  -e=<your@email.com>, --email=<your@email.com>
+                     Email trades result to specified email address.
+                     You will recive a email first where you must give mailgun
+                     permission to send email to email adress.
+  -v, --verbose      Enable verbose output for detailed logging and information.
+  -h, --help         Display this help menu.
 `, os.Args[0])
 	os.Exit(code)
 }
+
+var (
+	verbose      bool
+	mail         bool
+	emailAddress string
+)
 
 func main() {
 	var update time.Duration
 	var listReports int
 
 	for _, v := range os.Args[1:] {
-		switch v {
-		case "help", "--help", "-h":
+		switch {
+		case v == "--help" || v == "-h" || v == "help":
 			usage(0)
+		case strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "email="):
+			emailPrefix := ""
+			if strings.HasPrefix(v, "--email=") {
+				emailPrefix = "--email="
+			} else if strings.HasPrefix(v, "-e=") {
+				emailPrefix = "-e="
+			} else {
+				emailPrefix = "email="
+			}
+
+			// Extract the email address by trimming the prefix
+			emailAddress = strings.TrimPrefix(v, emailPrefix)
+			mail = true
+		case v == "--verbose" || v == "-v" || v == "verbose":
+			verbose = true
 		default:
 			if _, err := time.ParseDuration(v); err == nil {
 				update, _ = time.ParseDuration(v)
@@ -52,13 +80,23 @@ func main() {
 			}
 		}
 	}
+
 	if update == 0 && listReports == 0 || update != 0 && listReports != 0 {
 		usage(1)
 	}
-	// fmt.Println("update", update)
-	// fmt.Println("listReports", listReports)
-	// os.Exit(0)
-	// load stored links and trades
+	if verbose {
+		log.Println("verbose is active")
+	}
+	if mail {
+		if !strings.Contains(emailAddress, "@") {
+			log.Fatalln("invalid email address: must contain '@'")
+		}
+		if err := email.Init(); err != nil {
+			log.Fatalln(err)
+		}
+		log.Printf("emailing is enabled. trades will be sent to %s.\n", emailAddress)
+	}
+
 	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
 	log.Printf("loaded %d reports.\n", len(links))
 	gemini.Trades, _ = utils.ReadJSON[[]gemini.Trade](gemini.FILE_TRADES)
@@ -66,6 +104,9 @@ func main() {
 
 	if update != 0 {
 		log.Printf("checking for new reports every %v.\n", update)
+		if verbose {
+			utils.GrayPrintf("setting up ticker %v for report checking\n", update)
+		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -77,6 +118,9 @@ func main() {
 			for {
 				select {
 				case <-ctx.Done():
+					if verbose {
+						utils.GrayPrintf("ticker stopped\n")
+					}
 					return
 				case <-ticker.C:
 					if err := checkReports(update, listReports); err != nil {
@@ -92,6 +136,9 @@ func main() {
 	}
 
 	if update == 0 {
+		if verbose {
+			utils.GrayPrintf("update is not enabled. program exit.\n")
+		}
 		return
 	}
 
@@ -104,6 +151,9 @@ func checkReports(update time.Duration, listReports int) error {
 
 	if update != 0 {
 		log.Println("checking for new reports.")
+		if verbose {
+			utils.GrayPrintf("scraping site for new report links\n")
+		}
 		files, err = clerk.SiteScrape(links)
 		if err != nil {
 			return err
@@ -115,11 +165,13 @@ func checkReports(update time.Duration, listReports int) error {
 	if listReports > 0 {
 		if len(files) > listReports {
 			files = files[len(files)-listReports:] // Keep only the last listReports files
+			if verbose {
+				utils.GrayPrintf("allocating space for %d files in memory for upload to gemini processing.\n", len(files))
+			}
 		}
 	}
 
-	// store content concurrently in memory
-	var fileContents [][]byte
+	var fileContent [][]byte
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for _, file := range files {
@@ -130,23 +182,45 @@ func checkReports(update time.Duration, listReports int) error {
 
 			content, err := fetchFileContent(file)
 			if err != nil {
-				log.Printf("Failed to fetch content for file %s: %v", file, err)
+				log.Printf("Failed to fetch content for file %s: %v\n", file, err)
 				return
 			}
 
-			log.Printf("stored %s in memory\n", filepath.Base(file))
+			if verbose {
+				utils.GrayPrintf("%s stored in memory.\n", file)
+			}
 
 			mu.Lock()
-			fileContents = append(fileContents, content)
+			fileContent = append(fileContent, content)
 			mu.Unlock()
 		}(file)
 	}
 
 	wg.Wait()
-	if len(fileContents) == 0 {
-		return nil
+	if len(fileContent) == 0 {
+		if verbose {
+			utils.GrayPrintf("fileContent is empty. nothing to process.\n")
+		}
+		return err
 	}
-	return gemini.ProsessRapports(fileContents, files)
+
+	// Process reports
+	var strTrades string
+	strTrades, err = gemini.ProsessReports(fileContent, files)
+	if err != nil {
+		return err
+	}
+
+	if mail {
+		if err := email.SendTrades(strTrades, emailAddress); err != nil {
+			return err
+		}
+		if verbose {
+			utils.GrayPrintf("trade reports have been sent!.\n")
+		}
+	}
+
+	return nil
 }
 
 func fetchFileContent(link string) ([]byte, error) {
@@ -155,8 +229,7 @@ func fetchFileContent(link string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// set User-Agent to mimic Google Chrome
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.5938.62 Safari/537.36")
 
 	resp, err := client.Do(req)
 	if err != nil {
