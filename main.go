@@ -107,9 +107,6 @@ func main() {
 
 	if update != 0 {
 		log.Printf("checking for new reports every %v.\n", update)
-		if verbose {
-			utils.GrayPrintf("setting up ticker %v for report checking\n", update)
-		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -154,14 +151,14 @@ func checkReports(update time.Duration, listReports int) error {
 
 	if update != 0 {
 		log.Println("checking for new reports.")
-		if verbose {
-			utils.GrayPrintf("scraping site for new report links\n")
-		}
 		files, err = clerk.SiteScrape(links)
 		if err != nil {
 			return err
 		}
 	} else {
+		if verbose {
+			utils.GrayPrintf("scraping site is disabled.\n")
+		}
 		files = links
 	}
 
