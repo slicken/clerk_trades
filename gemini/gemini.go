@@ -81,7 +81,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 		})
 	}
 
-	log.Printf("generating trade report...")
+	log.Printf("processing trade report...")
 
 	resp, err := model.GenerateContent(ctx, parts...)
 	if err != nil {
@@ -127,18 +127,21 @@ func addNewTrades(newTrades []Trade) error {
 	for _, newTrade := range newTrades {
 		isUnique := true
 		for _, existingTrade := range Trades {
-			if newTrade.Ticker == existingTrade.Ticker &&
-				newTrade.Type == existingTrade.Type &&
-				newTrade.Date == existingTrade.Date &&
-				newTrade.Filed == existingTrade.Filed &&
-				newTrade.Amount == existingTrade.Amount &&
-				newTrade.Cap == existingTrade.Cap {
+			if (newTrade.Ticker == existingTrade.Ticker || newTrade.Ticker == "") &&
+				(newTrade.Type == existingTrade.Type || newTrade.Type == "") &&
+				(newTrade.Date == existingTrade.Date || newTrade.Date == "") &&
+				(newTrade.Filed == existingTrade.Filed || newTrade.Filed == "") &&
+				(newTrade.Amount == existingTrade.Amount || newTrade.Amount == "") {
 				isUnique = false
-				break
+				break // is this correct?
 			}
 		}
 		if isUnique {
 			Trades = append(Trades, newTrade)
+			if verbose {
+				utils.GrayPrintf("NEW!\n")
+				utils.GrayPrintf(PrintTrades([]Trade{newTrade}))
+			}
 			add++
 		}
 	}

@@ -9,12 +9,13 @@ edit email/email.go and set your mailgun domain, if you want to use email future
 ```bash
 me@pc:~$ ./clerk --help
 CLERK TRADES - U.S. Government Official Financial Report Tracker
-Usage: ./app [<update_duration> | <list>]
+Usage: %s [<ticker_duration> | <list>] [OPTIONS]
 
 Arguments:
-  update_duration    Duration for scraping the Clerk site, minimum 1 hour (e.g., 6h, 1d, 3d).
+  ticker_duration    Duration for the application ticker to check for new reports
+                     on Clerk site. Minimum 3h (e.g. 6h, 32h, 3d).
                      Only accepts 'h' for hours or 'd' for days before the integer.
-                     If not specified, site scraping will be disabled.
+                     If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be greater than 0.
                      If used, the program will exit after printing.

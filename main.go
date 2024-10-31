@@ -21,12 +21,13 @@ var links []string
 
 func usage(code int) {
 	fmt.Printf(`CLERK TRADES - U.S. Government Official Financial Report Tracker
-Usage: %s [<update_duration> | <list>] [OPTIONS]
+Usage: %s [<ticker_duration> | <list>] [OPTIONS]
 
 Arguments:
-  update_duration    Duration for scraping the Clerk site, minimum 1 hour (e.g., 6h, 1d, 3d).
+  ticker_duration    Duration for the application ticker to check for new reports
+                     on Clerk site. Minimum 3h (e.g. 6h, 32h, 3d).
                      Only accepts 'h' for hours or 'd' for days before the integer.
-                     If not specified, site scraping will be disabled.
+                     If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be greater than 0.
                      If used, the program will exit after printing.
@@ -58,6 +59,8 @@ func main() {
 		switch {
 		case v == "--help" || v == "-h" || v == "help":
 			usage(0)
+		case v == "--verbose" || v == "-v" || v == "verbose":
+			verbose = true
 		case strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "email="):
 			emailPrefix := ""
 			if strings.HasPrefix(v, "--email=") {
@@ -67,19 +70,24 @@ func main() {
 			} else {
 				emailPrefix = "email="
 			}
-
-			// Extract the email address by trimming the prefix
 			emailAddress = strings.TrimPrefix(v, emailPrefix)
-			mail = true
-		case v == "--verbose" || v == "-v" || v == "verbose":
-			verbose = true
-		default:
-			if duration, err := parseCustomDuration(v); err != nil {
+			if !strings.Contains(emailAddress, "@") {
+				log.Fatalln("invalid email address: must contain '@'")
+			}
+			if err := email.Init(); err != nil {
 				log.Fatalln(err)
-			} else if err == nil {
-				update = duration
-			} else if n, err := strconv.Atoi(v); err == nil {
+			}
+			mail = true
+		default:
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
 				listReports = n
+			} else if duration, err := parseCustomDuration(v); err == nil {
+				if duration < 3*time.Hour {
+					log.Fatalln("minimum duration must be 3h.")
+				}
+				update = duration
+			} else {
+				log.Fatalln("invalid argument:", v)
 			}
 		}
 	}
@@ -91,12 +99,6 @@ func main() {
 		log.Println("verbose is active")
 	}
 	if mail {
-		if !strings.Contains(emailAddress, "@") {
-			log.Fatalln("invalid email address: must contain '@'")
-		}
-		if err := email.Init(); err != nil {
-			log.Fatalln(err)
-		}
 		log.Printf("emailing is enabled. trades will be sent to %s.\n", emailAddress)
 	}
 
@@ -106,7 +108,10 @@ func main() {
 	log.Printf("loaded %d trades.\n", len(gemini.Trades))
 
 	if update != 0 {
-		log.Printf("checking for new reports every %v.\n", update)
+		log.Printf("application ticker is set to check for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
+		// log.Printf("application will scan for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
+		// log.Printf("new report checks will occur every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
+		// log.Printf("scheduled checks for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -119,7 +124,7 @@ func main() {
 				select {
 				case <-ctx.Done():
 					if verbose {
-						utils.GrayPrintf("ticker stopped\n")
+						utils.GrayPrintf("application ticker stopped\n")
 					}
 					return
 				case <-ticker.C:
@@ -137,7 +142,7 @@ func main() {
 
 	if update == 0 {
 		if verbose {
-			utils.GrayPrintf("update is not enabled. program exit.\n")
+			utils.GrayPrintf("application ticker is disabled. program exit.\n")
 		}
 		return
 	}
@@ -151,13 +156,13 @@ func checkReports(update time.Duration, listReports int) error {
 
 	if update != 0 {
 		log.Println("checking for new reports.")
-		files, err = clerk.SiteScrape(links)
+		files, err = clerk.SiteCheck(links)
 		if err != nil {
 			return err
 		}
 	} else {
 		if verbose {
-			utils.GrayPrintf("scraping site is disabled.\n")
+			utils.GrayPrintf("application ticker is disabled.\n")
 		}
 		files = links
 	}
@@ -166,7 +171,7 @@ func checkReports(update time.Duration, listReports int) error {
 		if len(files) > listReports {
 			files = files[len(files)-listReports:] // Keep only the last listReports files
 			if verbose {
-				utils.GrayPrintf("allocating space for %d files in memory for upload to gemini processing.\n", len(files))
+				utils.GrayPrintf("allocating space for %d files in memory for later processing.\n", len(files))
 			}
 		}
 	}
@@ -256,5 +261,5 @@ func parseCustomDuration(input string) (time.Duration, error) {
 			return time.Duration(n) * 24 * time.Hour, nil
 		}
 	}
-	return 0, fmt.Errorf("invalid duration format; only hours (h) and days (d) are accepted")
+	return 0, fmt.Errorf("invalid duration format; only hours (h) and days (d) are accepted.")
 }

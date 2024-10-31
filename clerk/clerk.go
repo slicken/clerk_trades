@@ -21,8 +21,8 @@ const (
 
 var newLinks []string
 
-// SiteScrape
-func SiteScrape(links []string) ([]string, error) {
+// SiteCheck
+func SiteCheck(links []string) ([]string, error) {
 	pw, err := playwright.Run()
 	if err != nil {
 		return nil, fmt.Errorf("could not start Playwright: %v", err)
@@ -86,7 +86,7 @@ func SiteScrape(links []string) ([]string, error) {
 			defer wg.Done()
 			err := scrapeLinks(pageNum, page, &mu, links, newLinks)
 			if err != nil {
-				log.Printf("could not scrape %d: %v", pageNum, err)
+				log.Printf("could not get data from page %d: %v", pageNum, err)
 			}
 		}(n)
 	}
@@ -99,7 +99,7 @@ func SiteScrape(links []string) ([]string, error) {
 		if err != nil {
 			return links, err
 		}
-		log.Printf("updated %q, contains %d reports.\n", FILE_LINKS, len(links))
+		log.Printf("updated %s. now contains %d reports.\n", FILE_LINKS, len(links))
 	}
 
 	return newLinks, nil

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	emailDomain = "your.mailgun.domain"
+	emailDomain = "your-sandbox.mailgun.org"
 )
 
 var apiKey string
