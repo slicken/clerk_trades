@@ -99,7 +99,7 @@ func main() {
 		log.Println("verbose is active")
 	}
 	if mail {
-		log.Printf("emailing is enabled. trades will be sent to %s.\n", emailAddress)
+		log.Printf("trades will be sent to %s.\n", emailAddress)
 	}
 
 	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
@@ -217,7 +217,7 @@ func checkReports(update time.Duration, listReports int) error {
 	}
 
 	if mail {
-		if err := email.SendTrades(strTrades, emailAddress); err != nil {
+		if err := email.SendTrades(emailAddress, strTrades); err != nil {
 			return err
 		}
 		if verbose {
