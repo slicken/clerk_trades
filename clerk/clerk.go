@@ -19,7 +19,14 @@ const (
 	FILE_LINKS = "links.json"
 )
 
-var newLinks []string
+var (
+	newLinks []string
+	verbose  bool
+)
+
+func SetVerbose(v bool) {
+	verbose = v
+}
 
 // SiteCheck
 func SiteCheck(links []string) ([]string, error) {
@@ -77,7 +84,9 @@ func SiteCheck(links []string) ([]string, error) {
 		return nil, fmt.Errorf("could not convert page count to integer: %v", err)
 	}
 
-	// log.Printf("looking through %d pages.", pageCount)
+	if verbose {
+		log.Printf("looking through %d pages.\n", pageCount)
+	}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for n := 1; n <= pageCount; n++ {
@@ -85,13 +94,17 @@ func SiteCheck(links []string) ([]string, error) {
 		go func(pageNum int) {
 			defer wg.Done()
 			err := scrapeLinks(pageNum, page, &mu, links, newLinks)
-			if err != nil {
+			if err != nil && verbose {
 				log.Printf("could not get data from page %d: %v", pageNum, err)
 			}
 		}(n)
 	}
 
 	wg.Wait()
+
+	if verbose {
+		fmt.Printf("\n")
+	}
 
 	if len(newLinks) != 0 {
 		links = append(links, newLinks...)
@@ -124,7 +137,10 @@ func scrapeLinks(pageNum int, page playwright.Page, mu *sync.Mutex, links []stri
 		return fmt.Errorf("could not query table rows on page %d: %v", pageNum, err)
 	}
 
-	// fmt.Print(".")
+	if verbose {
+		fmt.Printf(utils.DarkGray, ".")
+	}
+
 	for _, row := range rows {
 		linkElement, err := row.QuerySelector(`td.memberName a`)
 		if err != nil {

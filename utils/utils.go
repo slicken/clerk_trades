@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
 const (
@@ -25,17 +24,17 @@ const (
 // utils.ColorPrintf(utils.Cyan, "Important: %s\n", "Check this out!")
 // utils.ColorPrintf(utils.Magenta, "Attention: %s\n", "This needs your attention!")
 
-// ColorPrintf prints a formatted message in a specified color
-func ColorPrintf(color string, format string, a ...any) (n int, err error) {
-	return fmt.Fprintf(os.Stdout, color+format+reset, a...)
-}
+// // ColorPrintf prints a formatted message in a specified color
+// func ColorPrintf(color string, format string, a ...any) (n int, err error) {
+// 	return fmt.Fprintf(os.Stdout, color+format+reset, a...)
+// }
 
-// GrayPrintf prints a formatted message in dark gray color with a timestamp
-func GrayPrintf(format string, a ...any) (n int, err error) {
-	// return fmt.Fprintf(os.Stdout, DarkGray+format+reset, a...)
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	return fmt.Fprintf(os.Stdout, DarkGray+"%s "+format+reset, append([]any{timestamp}, a...)...)
-}
+// // GrayPrintf prints a formatted message in dark gray color with a timestamp
+// func GrayPrintf(format string, a ...any) (n int, err error) {
+// 	// return fmt.Fprintf(os.Stdout, DarkGray+format+reset, a...)
+// 	timestamp := time.Now().Format("2006-01-02 15:04:05")
+// 	return fmt.Fprintf(os.Stdout, DarkGray+"%s "+format+reset, append([]any{timestamp}, a...)...)
+// }
 
 // ReadJSON to a generic struct T. If the file dont exist it will creates the file in JSON format []
 func ReadJSON[T any](file string) (T, error) {

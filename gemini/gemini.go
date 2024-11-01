@@ -101,7 +101,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 	fmt.Println(strTrades)
 
 	if verbose {
-		utils.GrayPrintf("%d trades in %d reports.\n", len(newTrades), len(links))
+		log.Printf("%d trades in %d reports.\n", len(newTrades), len(links))
 	}
 
 	err = addNewTrades(newTrades)
@@ -139,8 +139,8 @@ func addNewTrades(newTrades []Trade) error {
 		if isUnique {
 			Trades = append(Trades, newTrade)
 			if verbose {
-				utils.GrayPrintf("NEW!\n")
-				utils.GrayPrintf(PrintTrades([]Trade{newTrade}))
+				log.Printf("NEW!\n")
+				log.Printf(PrintTrades([]Trade{newTrade}))
 			}
 			add++
 		}
@@ -148,7 +148,7 @@ func addNewTrades(newTrades []Trade) error {
 
 	if add == 0 {
 		if verbose {
-			utils.GrayPrintf("no new trades.\n")
+			log.Printf("no new trades.\n")
 		}
 		return nil
 	}

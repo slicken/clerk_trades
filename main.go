@@ -97,6 +97,8 @@ func main() {
 	}
 	if verbose {
 		log.Println("verbose is active")
+		gemini.SetVerbose(true)
+		clerk.SetVerbose(true)
 	}
 	if mail {
 		log.Printf("trades will be sent to %s.\n", emailAddress)
@@ -124,7 +126,7 @@ func main() {
 				select {
 				case <-ctx.Done():
 					if verbose {
-						utils.GrayPrintf("application ticker stopped\n")
+						log.Printf("application ticker stopped.\n")
 					}
 					return
 				case <-ticker.C:
@@ -142,7 +144,7 @@ func main() {
 
 	if update == 0 {
 		if verbose {
-			utils.GrayPrintf("application ticker is disabled. program exit.\n")
+			log.Printf("application ticker is disabled. program exit.\n")
 		}
 		return
 	}
@@ -162,7 +164,7 @@ func checkReports(update time.Duration, listReports int) error {
 		}
 	} else {
 		if verbose {
-			utils.GrayPrintf("application ticker is disabled.\n")
+			log.Printf("application ticker is disabled.\n")
 		}
 		files = links
 	}
@@ -171,7 +173,7 @@ func checkReports(update time.Duration, listReports int) error {
 		if len(files) > listReports {
 			files = files[len(files)-listReports:] // Keep only the last listReports files
 			if verbose {
-				utils.GrayPrintf("allocating space for %d files in memory for later processing.\n", len(files))
+				log.Printf("allocating space for %d files in memory for later processing.\n", len(files))
 			}
 		}
 	}
@@ -192,7 +194,7 @@ func checkReports(update time.Duration, listReports int) error {
 			}
 
 			if verbose {
-				utils.GrayPrintf("%s stored in memory.\n", file)
+				log.Printf("%s stored in memory.\n", file)
 			}
 
 			mu.Lock()
@@ -204,7 +206,7 @@ func checkReports(update time.Duration, listReports int) error {
 	wg.Wait()
 	if len(fileContent) == 0 {
 		if verbose {
-			utils.GrayPrintf("fileContent is empty. nothing to process.\n")
+			log.Printf("fileContent is empty. nothing to process.\n")
 		}
 		return err
 	}
@@ -221,7 +223,7 @@ func checkReports(update time.Duration, listReports int) error {
 			return err
 		}
 		if verbose {
-			utils.GrayPrintf("trade reports have been sent!.\n")
+			log.Printf("trade reports have been sent to %s.\n", emailAddress)
 		}
 	}
 
