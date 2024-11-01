@@ -138,7 +138,7 @@ func scrapeLinks(pageNum int, page playwright.Page, mu *sync.Mutex, links []stri
 	}
 
 	if verbose {
-		fmt.Printf(utils.DarkGray, ".")
+		fmt.Printf(".")
 	}
 
 	for _, row := range rows {
