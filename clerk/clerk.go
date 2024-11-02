@@ -28,7 +28,6 @@ func SetVerbose(v bool) {
 	verbose = v
 }
 
-// SiteCheck
 func SiteCheck(links []string) ([]string, error) {
 	pw, err := playwright.Run()
 	if err != nil {
@@ -54,7 +53,7 @@ func SiteCheck(links []string) ([]string, error) {
 		return nil, fmt.Errorf("failed to go to URL: %v", err)
 	}
 
-	// Select the current year
+	// select the current year
 	thisYear := fmt.Sprintf("%d", time.Now().Year())
 	selectYear := page.Locator("#FilingYear")
 	_, err = selectYear.SelectOption(playwright.SelectOptionValues{
@@ -125,7 +124,7 @@ func scrapeLinks(pageNum int, page playwright.Page, mu *sync.Mutex, links []stri
 		return fmt.Errorf("failed to go to page %d: %v", pageNum, err)
 	}
 
-	// Wait for the results to load
+	// wait for the results to load
 	if _, err := page.WaitForSelector(`#DataTables_Table_0`, playwright.PageWaitForSelectorOptions{
 		State: playwright.WaitForSelectorStateVisible,
 	}); err != nil {

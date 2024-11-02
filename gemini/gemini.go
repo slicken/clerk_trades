@@ -91,7 +91,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 
 	out := getResponse(resp)
 	if len(out) == 0 {
-		return "", fmt.Errorf("no output data from gemini.\n")
+		return "", fmt.Errorf("no output data from gemini")
 	}
 	if err := json.Unmarshal([]byte(out), &newTrades); err != nil {
 		return "", fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)

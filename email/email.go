@@ -19,7 +19,7 @@ var apiKey string
 func Init() error {
 	apiKey = os.Getenv("MAILGUN_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("MAILGUN_API_KEY environment variable is not set.\n")
+		return fmt.Errorf("MAILGUN_API_KEY environment variable is not set")
 	}
 	return nil
 }
@@ -37,7 +37,7 @@ func SendTrades(to string, body string) error {
 	ctx := context.Background()
 	_, _, err := mg.Send(ctx, m)
 	if err != nil {
-		return fmt.Errorf("failed to send email: %v\n", err)
+		return fmt.Errorf("failed to send email: %v", err)
 	}
 
 	return nil
