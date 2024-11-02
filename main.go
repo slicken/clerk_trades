@@ -24,9 +24,9 @@ func usage(code int) {
 Usage: %s [<ticker_duration> | <list>] [OPTIONS]
 
 Arguments:
-  ticker_duration    Duration for the application ticker to check for new reports
-                     on Clerk site. Minimum 3h (e.g. 6h, 32h, 3d).
-                     Only accepts 'h' for hours or 'd' for days before the integer.
+  ticker_duration    Duration for the application ticker to check for new
+                     reports on Clerk website. Minimum 3h (e.g. 24h, 72h).
+                     Only accepts 'h' for hours before the integer.
                      If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be greater than 0.
@@ -75,7 +75,7 @@ func main() {
 				log.Fatalln("error: invalid email address, must contain '@'")
 			}
 			if err := email.Init(); err != nil {
-				log.Fatalln("error", err)
+				log.Fatalln("error:", err)
 			}
 			mail = true
 		default:
@@ -127,12 +127,12 @@ func main() {
 				select {
 				case <-ctx.Done():
 					if verbose {
-						log.Printf("ticker stopped.\n")
+						log.Println("ticker stopped.")
 					}
 					return
 				case <-ticker.C:
 					if err := checkReports(update, listReports); err != nil {
-						log.Printf("error: %v", err)
+						log.Println("error:", err)
 					}
 				}
 			}
@@ -140,12 +140,12 @@ func main() {
 	}
 
 	if err := checkReports(update, listReports); err != nil {
-		log.Printf("error: %v", err)
+		log.Println("error:", err)
 	}
 
 	if update == 0 {
 		if verbose {
-			log.Printf("ticker is disabled. program exit.\n")
+			log.Println("ticker is disabled. program exit.")
 		}
 		return
 	}
@@ -165,7 +165,7 @@ func checkReports(update time.Duration, listReports int) error {
 		}
 	} else {
 		if verbose {
-			log.Printf("application ticker is disabled.\n")
+			log.Println("application ticker is disabled.")
 		}
 		files = links
 	}
@@ -195,7 +195,7 @@ func checkReports(update time.Duration, listReports int) error {
 			}
 
 			if verbose {
-				log.Printf("%s stored in memory.\n", file)
+				log.Println(file, "stored in memory.")
 			}
 
 			mu.Lock()
@@ -207,7 +207,7 @@ func checkReports(update time.Duration, listReports int) error {
 	wg.Wait()
 	if len(fileContent) == 0 {
 		if verbose {
-			log.Printf("file content is empty. nothing to process.\n")
+			log.Println("file content is empty. nothing to process.")
 		}
 		return err
 	}
@@ -224,7 +224,7 @@ func checkReports(update time.Duration, listReports int) error {
 			return err
 		}
 		if verbose {
-			log.Printf("trade reports have been sent to %s.\n", emailAddress)
+			log.Printf("trade reports have been sent to %v.\n", emailAddress)
 		}
 	}
 
@@ -258,11 +258,6 @@ func parseCustomDuration(input string) (time.Duration, error) {
 		if n, err := strconv.Atoi(hours); err == nil {
 			return time.Duration(n) * time.Hour, nil
 		}
-	} else if strings.HasSuffix(input, "d") {
-		days := strings.TrimSuffix(input, "d")
-		if n, err := strconv.Atoi(days); err == nil {
-			return time.Duration(n) * 24 * time.Hour, nil
-		}
 	}
-	return 0, fmt.Errorf("invalid duration format; only hours (h) and days (d) are accepted.")
+	return 0, fmt.Errorf("invalid duration format; only hours (h) are accepted")
 }

@@ -12,9 +12,9 @@ CLERK TRADES - U.S. Government Official Financial Report Tracker
 Usage: %s [<ticker_duration> | <list>] [OPTIONS]
 
 Arguments:
-  ticker_duration    Duration for the application ticker to check for new reports
-                     on Clerk site. Minimum 3h (e.g. 6h, 32h, 3d).
-                     Only accepts 'h' for hours or 'd' for days before the integer.
+  ticker_duration    Duration for the application ticker to check for new
+                     reports on Clerk website. Minimum 3h (e.g. 24h, 72h).
+                     Only accepts 'h' for hours before the integer.
                      If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be greater than 0.
@@ -30,4 +30,8 @@ OPTIONS:
   -v, --verbose      Enable verbose output for detailed logging and information.
   -h, --help         Display this help menu.
 ```
+<br>
+## TODO
+implement mailgun.config file where you can set your domain name and maby api key and
+email adresses to mail when we find new trades.
 
