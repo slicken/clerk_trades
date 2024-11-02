@@ -3,7 +3,10 @@ package email
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -11,39 +14,39 @@ import (
 )
 
 const (
-	emailDomain = "yourdomain.mailgun.org"
+	emailDomain = "your.domain.mailgun.org"
 )
 
-var apiKey string
+var (
+	mg     *mailgun.MailgunImpl
+	apiKey string
+)
 
 func Init() error {
 	apiKey = os.Getenv("MAILGUN_API_KEY")
 	if apiKey == "" {
 		return fmt.Errorf("MAILGUN_API_KEY environment variable is not set")
 	}
+	mg = mailgun.NewMailgun(emailDomain, apiKey)
 	return nil
 }
 
 func SendTrades(to string, body string) error {
-	mg := mailgun.NewMailgun(emailDomain, apiKey)
 	m := mg.NewMessage(
 		"clerk trades <mailgun@"+emailDomain+">",
 		"TRADES",
 		body,
 		to,
 	)
-
 	m.AddRecipient(to)
 	ctx := context.Background()
 	_, _, err := mg.Send(ctx, m)
 	if err != nil {
 		return fmt.Errorf("failed to send email: %v", err)
 	}
-
 	return nil
 }
 
-// not yet implemented
 type MailgunConfig struct {
 	APIKey    string
 	Domain    string
@@ -90,10 +93,90 @@ func LoadMailgunConfig() error {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	fmt.Println("Mailgun API Key:", Mailgun.APIKey)
-	fmt.Println("Mailgun Domain:", Mailgun.Domain)
-	fmt.Println("Mailgun Email List:", Mailgun.EmailList)
-	return nil
+	mg = mailgun.NewMailgun(Mailgun.Domain, Mailgun.APIKey)
 
-	// return scanner.Err()
+	for _, email := range Mailgun.EmailList {
+		if err := checkAndAddEmail(email); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func checkAndAddEmail(to string) error {
+	ctx := context.Background()
+
+	mailingList, err := mg.GetMailingList(ctx, Mailgun.Domain)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve mailing list from Mailgun: %w", err)
+	}
+
+	members, err := listMailingListMembers(ctx, mailingList.Address)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve members from mailing list: %w", err)
+	}
+
+	for _, member := range members {
+		if strings.EqualFold(member.Address, to) {
+			return nil
+		}
+	}
+
+	err = addMailingListMember(ctx, mailingList.Address, to)
+	if err != nil {
+		return fmt.Errorf("failed to add email to mailing list: %w", err)
+	}
+
+	return nil
+}
+
+func listMailingListMembers(ctx context.Context, address string) ([]mailgun.Member, error) {
+	apiURL := fmt.Sprintf("https://api.mailgun.net/v3/lists/%s/members", address)
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth("api", apiKey)
+
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var membersResponse struct {
+		Members []mailgun.Member `json:"items"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&membersResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return membersResponse.Members, nil
+}
+
+func addMailingListMember(ctx context.Context, address string, email string) error {
+	apiURL := fmt.Sprintf("https://api.mailgun.net/v3/lists/%s/members", address)
+	data := url.Values{}
+	data.Set("address", email)
+
+	req, err := http.NewRequest("POST", apiURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth("api", apiKey)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to add member: %s", resp.Status)
+	}
+
+	return nil
 }
