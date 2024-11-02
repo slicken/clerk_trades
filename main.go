@@ -57,25 +57,25 @@ func main() {
 
 	for _, v := range os.Args[1:] {
 		switch {
-		case v == "--help" || v == "-h" || v == "help":
+		case v == "-h" || v == "--help" || v == "help":
 			usage(0)
-		case v == "--verbose" || v == "-v" || v == "verbose":
+		case v == "-v" || v == "--verbose" || v == "verbose":
 			verbose = true
-		case strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "email="):
+		case strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "email="):
 			emailPrefix := ""
-			if strings.HasPrefix(v, "--email=") {
-				emailPrefix = "--email="
-			} else if strings.HasPrefix(v, "-e=") {
+			if strings.HasPrefix(v, "-e=") {
 				emailPrefix = "-e="
+			} else if strings.HasPrefix(v, "--email=") {
+				emailPrefix = "--email="
 			} else {
 				emailPrefix = "email="
 			}
 			emailAddress = strings.TrimPrefix(v, emailPrefix)
 			if !strings.Contains(emailAddress, "@") {
-				log.Fatalln("invalid email address: must contain '@'")
+				log.Fatalln("error: invalid email address, must contain '@'")
 			}
 			if err := email.Init(); err != nil {
-				log.Fatalln(err)
+				log.Fatalln("error", err)
 			}
 			mail = true
 		default:
@@ -83,11 +83,11 @@ func main() {
 				listReports = n
 			} else if duration, err := parseCustomDuration(v); err == nil {
 				if duration < 3*time.Hour {
-					log.Fatalln("minimum duration must be 3h.")
+					log.Fatalln("error: minimum duration must be 3h.")
 				}
 				update = duration
 			} else {
-				log.Fatalln("invalid argument:", v)
+				log.Fatalln("error: invalid argument:", v)
 			}
 		}
 	}
@@ -96,7 +96,7 @@ func main() {
 		usage(1)
 	}
 	if verbose {
-		log.Println("verbose is active")
+		log.Println("verbose is active.")
 		gemini.SetVerbose(true)
 		clerk.SetVerbose(true)
 	}
@@ -105,15 +105,16 @@ func main() {
 	}
 
 	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
-	log.Printf("loaded %d reports.\n", len(links))
+	if verbose {
+		log.Printf("loaded %d reports.\n", len(links))
+	}
 	gemini.Trades, _ = utils.ReadJSON[[]gemini.Trade](gemini.FILE_TRADES)
-	log.Printf("loaded %d trades.\n", len(gemini.Trades))
+	if verbose {
+		log.Printf("loaded %d trades.\n", len(gemini.Trades))
+	}
 
 	if update != 0 {
-		log.Printf("application ticker is set to check for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
-		// log.Printf("application will scan for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
-		// log.Printf("new report checks will occur every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
-		// log.Printf("scheduled checks for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
+		log.Printf("ticker scheduled to check for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -126,12 +127,12 @@ func main() {
 				select {
 				case <-ctx.Done():
 					if verbose {
-						log.Printf("application ticker stopped.\n")
+						log.Printf("ticker stopped.\n")
 					}
 					return
 				case <-ticker.C:
 					if err := checkReports(update, listReports); err != nil {
-						log.Printf("Error: %v", err)
+						log.Printf("error: %v", err)
 					}
 				}
 			}
@@ -139,12 +140,12 @@ func main() {
 	}
 
 	if err := checkReports(update, listReports); err != nil {
-		log.Printf("Error: %v", err)
+		log.Printf("error: %v", err)
 	}
 
 	if update == 0 {
 		if verbose {
-			log.Printf("application ticker is disabled. program exit.\n")
+			log.Printf("ticker is disabled. program exit.\n")
 		}
 		return
 	}
@@ -189,7 +190,7 @@ func checkReports(update time.Duration, listReports int) error {
 
 			content, err := fetchFileContent(file)
 			if err != nil {
-				log.Printf("Failed to fetch content for file %s: %v\n", file, err)
+				log.Printf("failed to fetch content for file %s: %v\n", file, err)
 				return
 			}
 
@@ -206,7 +207,7 @@ func checkReports(update time.Duration, listReports int) error {
 	wg.Wait()
 	if len(fileContent) == 0 {
 		if verbose {
-			log.Printf("fileContent is empty. nothing to process.\n")
+			log.Printf("file content is empty. nothing to process.\n")
 		}
 		return err
 	}

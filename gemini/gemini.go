@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -40,12 +41,12 @@ func ProsessReports(fileContents [][]byte, links []string) (string, error) {
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
-		log.Fatalln("environment variable GEMINI_API_KEY not set")
+		log.Fatalln("error: environment variable GEMINI_API_KEY not set")
 	}
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return "", fmt.Errorf("error creating client: %v", err)
+		return "", fmt.Errorf("failed to creating client: %v", err)
 	}
 	defer client.Close()
 
@@ -73,7 +74,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 `))
 
 	var parts []genai.Part
-	parts = append(parts, genai.Text("create JSON"))
+	parts = append(parts, genai.Text("create JSON with the very important instructions"))
 	for _, data := range fileContents {
 		parts = append(parts, genai.Blob{
 			MIMEType: "application/pdf",
@@ -93,7 +94,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 		return "", fmt.Errorf("no output data from gemini.\n")
 	}
 	if err := json.Unmarshal([]byte(out), &newTrades); err != nil {
-		return "", fmt.Errorf("error unmarshalling JSON: %v, Output: %s", err, out)
+		return "", fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)
 	}
 
 	// print new trades to stdout
@@ -127,21 +128,18 @@ func addNewTrades(newTrades []Trade) error {
 	for _, newTrade := range newTrades {
 		isUnique := true
 		for _, existingTrade := range Trades {
-			if (newTrade.Ticker == existingTrade.Ticker || newTrade.Ticker == "") &&
+			// does this work correctly?
+			if hasMatchingWord(newTrade.Name, existingTrade.Name) &&
+				(newTrade.Ticker == existingTrade.Ticker || newTrade.Ticker == "") &&
 				(newTrade.Type == existingTrade.Type || newTrade.Type == "") &&
 				(newTrade.Date == existingTrade.Date || newTrade.Date == "") &&
-				(newTrade.Filed == existingTrade.Filed || newTrade.Filed == "") &&
-				(newTrade.Amount == existingTrade.Amount || newTrade.Amount == "") {
+				(newTrade.Filed == existingTrade.Filed || newTrade.Filed == "") {
 				isUnique = false
-				break // is this correct?
+				break
 			}
 		}
 		if isUnique {
 			Trades = append(Trades, newTrade)
-			if verbose {
-				log.Printf("NEW!\n")
-				log.Printf(PrintTrades([]Trade{newTrade}))
-			}
 			add++
 		}
 	}
@@ -159,6 +157,23 @@ func addNewTrades(newTrades []Trade) error {
 	log.Printf("updated %s with %d new trades.\n", FILE_TRADES, add)
 
 	return nil
+}
+
+func hasMatchingWord(new, old string) bool {
+	if new == "" || old == "" {
+		return false
+	}
+	newWords := strings.Fields(new)
+	existingWords := strings.Fields(old)
+
+	for _, newWord := range newWords {
+		for _, existingWord := range existingWords {
+			if newWord == existingWord {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func PrintTrades(trades []Trade) string {
