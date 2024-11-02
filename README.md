@@ -1,4 +1,4 @@
-# clerk_trades - Unofficial\t !!UNDER WORK!!
+# clerk_trades - Unofficial !!UNDER WORK!!
 This program lists trades made by U.S. government officials.
 The financial reports official documents that the program scape fom [https://disclosures-clerk.house.gov/FinancialDisclosure](https://disclosures-clerk.house.gov/FinancialDisclosure) and then read by Google Gemini.
 
@@ -6,7 +6,7 @@ The financial reports official documents that the program scape fom [https://dis
 edit email/email.go and set your mailgun domain, if you want to use email future
 <br>
 ## Usage
-```bash
+```
 me@pc:~$ ./clerk --help
 CLERK TRADES - U.S. Government Official Financial Report Tracker
 Usage: %s [<ticker_duration> | <list>] [OPTIONS]
@@ -31,7 +31,7 @@ OPTIONS:
   -h, --help         Display this help menu.
 ```
 <br>
-## TODO
+## Todo
 implement mailgun.config file where you can set your domain name and maby api key and
 email adresses to mail when we find new trades.
 
