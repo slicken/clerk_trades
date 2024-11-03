@@ -39,6 +39,7 @@ OPTIONS:
                      Email trades result to specified email address.
                      You will recive a email first where you must give mailgun
                      permission to send email to email adress.
+  --log              Save logs to file.
   -v, --verbose      Enable verbose output for detailed logging and information.
   -h, --help         Display this help menu.
 `, os.Args[0])
@@ -59,8 +60,19 @@ func main() {
 		switch {
 		case v == "-h" || v == "--help" || v == "help":
 			usage(0)
+
 		case v == "-v" || v == "--verbose" || v == "verbose":
 			verbose = true
+
+		case v == "--log":
+			logName := time.Now().Format("01021504") + ".log"
+			logFile, err := os.Create(logName)
+			if err != nil {
+				log.Fatalf("could not create logfile %q: %v", logFile.Name(), err)
+			}
+			log.SetOutput(io.MultiWriter(os.Stderr, logFile))
+			log.Printf("successfully created logfile %q.\n", logFile.Name())
+
 		case strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "email="):
 			emailPrefix := ""
 			if strings.HasPrefix(v, "-e=") {
@@ -78,6 +90,7 @@ func main() {
 				log.Fatalln("error:", err)
 			}
 			mail = true
+
 		default:
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
 				listReports = n

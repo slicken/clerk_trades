@@ -27,6 +27,7 @@ OPTIONS:
                      Email trades result to specified email address.
                      You will recive a email first where you must give mailgun
                      permission to send email to email adress.
+  --log              Save logs to file.
   -v, --verbose      Enable verbose output for detailed logging and information.
   -h, --help         Display this help menu.
 ```
