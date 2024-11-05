@@ -36,7 +36,7 @@ func SetVerbose(v bool) {
 	verbose = v
 }
 
-func ProsessReports(fileContents [][]byte, links []string) (string, error) {
+func ProsessReports(fileContents [][]byte, links []string) ([]Trade, error) {
 	ctx := context.Background()
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
@@ -46,7 +46,7 @@ func ProsessReports(fileContents [][]byte, links []string) (string, error) {
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return "", fmt.Errorf("failed to creating client: %v", err)
+		return nil, fmt.Errorf("failed to creating client: %v", err)
 	}
 	defer client.Close()
 
@@ -86,15 +86,15 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 
 	resp, err := model.GenerateContent(ctx, parts...)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: %v", err)
+		return nil, fmt.Errorf("failed to generate content: %v", err)
 	}
 
 	out := getResponse(resp)
 	if len(out) == 0 {
-		return "", fmt.Errorf("no output data from gemini")
+		return nil, fmt.Errorf("no output data from gemini")
 	}
 	if err := json.Unmarshal([]byte(out), &newTrades); err != nil {
-		return "", fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)
+		return nil, fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)
 	}
 
 	// print new trades to stdout
@@ -107,7 +107,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 
 	err = addNewTrades(newTrades)
 
-	return strTrades, err
+	return newTrades, err
 }
 
 func getResponse(resp *genai.GenerateContentResponse) string {

@@ -226,14 +226,17 @@ func checkReports(update time.Duration, listReports int) error {
 	}
 
 	// Process reports
-	var strTrades string
-	strTrades, err = gemini.ProsessReports(fileContent, files)
+	trades, err := gemini.ProsessReports(fileContent, files)
 	if err != nil {
 		return err
 	}
 
 	if mail {
-		if err := email.SendTrades(emailAddress, strTrades); err != nil {
+		emailBody, err := email.GenerateEmailBody(trades)
+		if err != nil {
+			return err
+		}
+		if err := email.SendHTML(emailAddress, emailBody); err != nil {
 			return err
 		}
 		if verbose {

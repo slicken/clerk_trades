@@ -1,2 +1,4 @@
 app
 trades.json
+*.log
+*.service
