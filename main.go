@@ -220,7 +220,7 @@ func checkReports(update time.Duration, listReports int) error {
 	wg.Wait()
 	if len(fileContent) == 0 {
 		if verbose {
-			log.Println("file content is empty. nothing to process.")
+			log.Println("nothing new to process.")
 		}
 		return err
 	}

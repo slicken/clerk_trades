@@ -99,7 +99,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 
 	// print new trades to stdout
 	strTrades := PrintTrades(newTrades)
-	fmt.Println(strTrades)
+	log.Println(strTrades)
 
 	if verbose {
 		log.Printf("%d trades in %d reports.\n", len(newTrades), len(links))
@@ -177,7 +177,7 @@ func hasMatchingWord(new, old string) bool {
 }
 
 func PrintTrades(trades []Trade) string {
-	output := "\n"
+	output := "\r"
 	for _, trade := range trades {
 		output += fmt.Sprintf("Name:    %-20s\n", trade.Name)
 		output += fmt.Sprintf("Asset:   %-20s\n", trade.Asset)
@@ -186,8 +186,7 @@ func PrintTrades(trades []Trade) string {
 		output += fmt.Sprintf("Date:    %-20s\n", trade.Date)
 		output += fmt.Sprintf("Filed:   %-20s\n", trade.Filed)
 		output += fmt.Sprintf("Amount:  %-20s\n", trade.Amount)
-		output += fmt.Sprintf("Cap:     %-20v\n", trade.Cap)
-		output += "\n"
+		output += fmt.Sprintf("Cap:     %-20v\n\n", trade.Cap)
 	}
 	return output
 }

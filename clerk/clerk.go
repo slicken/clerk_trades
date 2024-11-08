@@ -86,6 +86,7 @@ func SiteCheck(links []string) ([]string, error) {
 	if verbose {
 		log.Printf("looking through %d pages.\n", pageCount)
 	}
+
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for n := 1; n <= pageCount; n++ {
@@ -100,10 +101,6 @@ func SiteCheck(links []string) ([]string, error) {
 	}
 
 	wg.Wait()
-
-	if verbose {
-		fmt.Printf("\n")
-	}
 
 	if len(newLinks) != 0 {
 		links = append(links, newLinks...)
@@ -136,10 +133,6 @@ func scrapeLinks(pageNum int, page playwright.Page, mu *sync.Mutex, links []stri
 		return fmt.Errorf("failed to query table rows on page %d: %v", pageNum, err)
 	}
 
-	if verbose {
-		fmt.Printf(".")
-	}
-
 	for _, row := range rows {
 		linkElement, err := row.QuerySelector(`td.memberName a`)
 		if err != nil {
@@ -160,7 +153,7 @@ func scrapeLinks(pageNum int, page playwright.Page, mu *sync.Mutex, links []stri
 		mu.Lock()
 		if !utils.Contains(links, URL+href) {
 			newLinks = append(newLinks, URL+href)
-			fmt.Println(URL + href)
+			log.Println(URL + href)
 		}
 		mu.Unlock()
 	}
