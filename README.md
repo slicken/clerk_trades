@@ -4,7 +4,16 @@ The financial reports official documents that the program scape fom [https://dis
 
 ## Prepare
 edit email/email.go and set your mailgun domain, if you want to use email future
+
+install the package Playwright browsers and OS dependencies
+```
+go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps
+# Or
+go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+playwright install --with-deps
+```
 <br>
+
 ## Usage
 ```
 me@pc:~$ ./clerk --help

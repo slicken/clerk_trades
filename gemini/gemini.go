@@ -97,7 +97,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 		return nil, fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)
 	}
 
-	// print new trades to stdout
+	// print trades
 	strTrades := PrintTrades(newTrades)
 	log.Print("\r\n", strTrades)
 

@@ -6,7 +6,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
@@ -20,8 +19,7 @@ const (
 )
 
 var (
-	newLinks []string
-	verbose  bool
+	verbose bool
 )
 
 func SetVerbose(v bool) {
@@ -29,6 +27,8 @@ func SetVerbose(v bool) {
 }
 
 func SiteCheck(links []string) ([]string, error) {
+	var newLinks []string
+
 	pw, err := playwright.Run()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Playwright: %v", err)
@@ -87,20 +87,68 @@ func SiteCheck(links []string) ([]string, error) {
 		log.Printf("looking through %d pages.\n", pageCount)
 	}
 
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	for n := 1; n <= pageCount; n++ {
-		wg.Add(1)
-		go func(pageNum int) {
-			defer wg.Done()
-			err := scrapeLinks(pageNum, page, &mu, links, newLinks)
-			if err != nil && verbose {
-				log.Printf("failed to get data from page %d: %v", pageNum, err)
-			}
-		}(n)
-	}
+	// scrape links
+	for pageNum := 1; pageNum <= pageCount; pageNum++ {
+		// Wait for the results table to be visible before scraping
+		if _, err := page.WaitForSelector(`#DataTables_Table_0`, playwright.PageWaitForSelectorOptions{
+			State: playwright.WaitForSelectorStateVisible,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to wait for results table on page %d: %v", pageNum, err)
+		}
 
-	wg.Wait()
+		// Scrape the rows
+		rows, err := page.QuerySelectorAll(`#DataTables_Table_0 tbody tr`)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query table rows on page %d: %v", pageNum, err)
+		}
+
+		for _, row := range rows {
+			linkElement, err := row.QuerySelector(`td.memberName a`)
+			if err != nil {
+				log.Printf("failed to find link in row on page %d: %v", pageNum, err)
+				continue
+			}
+
+			href, err := linkElement.GetAttribute("href")
+			if err != nil {
+				log.Printf("failed to get href attribute on page %d: %v", pageNum, err)
+				continue
+			}
+
+			if href == "" || strings.Contains(href, pass) {
+				continue
+			}
+
+			if !utils.Contains(links, URL+href) {
+				newLinks = append(newLinks, URL+href)
+				log.Println(URL + href)
+			}
+		}
+
+		if pageNum >= pageCount {
+			break
+		}
+
+		// get next page data
+		next := pageNum + 1
+		dataDtIdxLocator := page.Locator(fmt.Sprintf(".paginate_button:has-text('%d')", next)).GetByText(fmt.Sprintf("%d", next), playwright.LocatorGetByTextOptions{
+			Exact: playwright.Bool(true),
+		})
+
+		dataDtIdxText, err := dataDtIdxLocator.GetAttribute("data-dt-idx")
+		if err != nil {
+			log.Printf("failed to get data-dt-idx attribute for page %d button: %v", next, err)
+			break
+		}
+
+		nextPageButtonLocator := page.Locator(fmt.Sprintf(".paginate_button[data-dt-idx='%s']", dataDtIdxText))
+		if err := nextPageButtonLocator.Click(playwright.LocatorClickOptions{
+			Timeout: playwright.Float(60000), // 60 seconds timeout
+		}); err != nil {
+			log.Printf("failed to click next page button on page %d: %v", next, err)
+			break
+		}
+	}
 
 	if len(newLinks) != 0 {
 		links = append(links, newLinks...)
@@ -112,51 +160,4 @@ func SiteCheck(links []string) ([]string, error) {
 	}
 
 	return newLinks, nil
-}
-
-// scrapeLinks scrapes the links from a specific page.
-func scrapeLinks(pageNum int, page playwright.Page, mu *sync.Mutex, links []string, newLinks []string) error {
-	_, err := page.Goto(fmt.Sprintf("%s%s&page=%d", URL, SEARCH, pageNum))
-	if err != nil {
-		return fmt.Errorf("failed to go to page %d: %v", pageNum, err)
-	}
-
-	// wait for the results to load
-	if _, err := page.WaitForSelector(`#DataTables_Table_0`, playwright.PageWaitForSelectorOptions{
-		State: playwright.WaitForSelectorStateVisible,
-	}); err != nil {
-		return fmt.Errorf("failed to wait for results table on page %d: %v", pageNum, err)
-	}
-
-	rows, err := page.QuerySelectorAll(`#DataTables_Table_0 tbody tr`)
-	if err != nil {
-		return fmt.Errorf("failed to query table rows on page %d: %v", pageNum, err)
-	}
-
-	for _, row := range rows {
-		linkElement, err := row.QuerySelector(`td.memberName a`)
-		if err != nil {
-			log.Printf("failed to find link in row on page %d: %v", pageNum, err)
-			continue
-		}
-
-		href, err := linkElement.GetAttribute("href")
-		if err != nil {
-			log.Printf("failed to get href attribute on page %d: %v", pageNum, err)
-			continue
-		}
-
-		if href == "" || strings.Contains(href, pass) {
-			continue
-		}
-
-		mu.Lock()
-		if !utils.Contains(links, URL+href) {
-			newLinks = append(newLinks, URL+href)
-			log.Println(URL + href)
-		}
-		mu.Unlock()
-	}
-
-	return nil
 }

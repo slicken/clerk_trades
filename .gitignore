@@ -2,3 +2,4 @@ app
 trades.json
 *.log
 *.service
+*.bak

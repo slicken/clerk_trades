@@ -207,10 +207,6 @@ func checkReports(update time.Duration, listReports int) error {
 				return
 			}
 
-			if verbose {
-				log.Println(file, "stored in memory.")
-			}
-
 			mu.Lock()
 			fileContent = append(fileContent, content)
 			mu.Unlock()
@@ -219,9 +215,7 @@ func checkReports(update time.Duration, listReports int) error {
 
 	wg.Wait()
 	if len(fileContent) == 0 {
-		if verbose {
-			log.Println("nothing new to process.")
-		}
+		log.Println("nothing new to process.")
 		return err
 	}
 
