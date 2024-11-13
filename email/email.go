@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	emailDomain = "your.mailgun.org"
+	emailDomain = "sandboxb7a349a65c174b62955c4190ef32fe43.mailgun.org"
 )
 
 var (

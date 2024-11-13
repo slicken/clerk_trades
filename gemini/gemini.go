@@ -126,22 +126,34 @@ func addNewTrades(newTrades []Trade) error {
 	var add int
 
 	for _, newTrade := range newTrades {
-		isUnique := true
 		for _, existingTrade := range Trades {
-			// does this work correctly?
+			// existing trades are not accepted
 			if hasMatchingWord(newTrade.Name, existingTrade.Name) &&
-				(newTrade.Ticker == existingTrade.Ticker || newTrade.Ticker == "") &&
-				(newTrade.Type == existingTrade.Type || newTrade.Type == "") &&
-				(newTrade.Date == existingTrade.Date || newTrade.Date == "") &&
-				(newTrade.Filed == existingTrade.Filed || newTrade.Filed == "") {
-				isUnique = false
-				break
+				(newTrade.Ticker == existingTrade.Ticker) &&
+				(newTrade.Type == existingTrade.Type) &&
+				(newTrade.Date == existingTrade.Date) &&
+				(newTrade.Filed == existingTrade.Filed) {
+				continue
+			}
+			// empty fileds are not accepted
+			if newTrade == existingTrade {
+				continue
+			}
+			if newTrade.Ticker == "" {
+				continue
+			}
+			if newTrade.Type == "" {
+				continue
+			}
+			if newTrade.Date == "" {
+				continue
+			}
+			if newTrade.Filed == "" {
+				continue
 			}
 		}
-		if isUnique {
-			Trades = append(Trades, newTrade)
-			add++
-		}
+		Trades = append(Trades, newTrade)
+		add++
 	}
 
 	if add == 0 {
