@@ -121,10 +121,6 @@ func main() {
 	if verbose {
 		log.Printf("loaded %d reports.\n", len(links))
 	}
-	gemini.Trades, _ = utils.ReadJSON[[]gemini.Trade](gemini.FILE_TRADES)
-	if verbose {
-		log.Printf("loaded %d trades.\n", len(gemini.Trades))
-	}
 
 	if update != 0 {
 		log.Printf("ticker scheduled to check for new reports every %s.\n", fmt.Sprintf("%.0fh", update.Hours()))

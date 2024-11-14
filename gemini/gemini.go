@@ -1,19 +1,15 @@
 package gemini
 
 import (
-	"clerk_trades/utils"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
-
-const FILE_TRADES = "trades.json"
 
 type Trade struct {
 	Name   string `json:"Name"`
@@ -27,9 +23,7 @@ type Trade struct {
 }
 
 var (
-	Trades    []Trade
-	newTrades []Trade
-	verbose   bool
+	verbose bool
 )
 
 func SetVerbose(v bool) {
@@ -37,6 +31,7 @@ func SetVerbose(v bool) {
 }
 
 func ProsessReports(fileContents [][]byte, links []string) ([]Trade, error) {
+	var Trades []Trade
 	ctx := context.Background()
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
@@ -93,21 +88,21 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no output data from gemini")
 	}
-	if err := json.Unmarshal([]byte(out), &newTrades); err != nil {
+	if err := json.Unmarshal([]byte(out), &Trades); err != nil {
 		return nil, fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)
 	}
 
 	// print trades
-	strTrades := PrintTrades(newTrades)
+	strTrades := PrintTrades(Trades)
 	log.Print("\r\n", strTrades)
 
+	Trades = checkTrades(Trades)
+
 	if verbose {
-		log.Printf("%d trades in %d reports.\n", len(newTrades), len(links))
+		log.Printf("%d trades in %d reports.\n", len(Trades), len(links))
 	}
 
-	err = addNewTrades(newTrades)
-
-	return newTrades, err
+	return Trades, nil
 }
 
 func getResponse(resp *genai.GenerateContentResponse) string {
@@ -120,72 +115,6 @@ func getResponse(resp *genai.GenerateContentResponse) string {
 		}
 	}
 	return str
-}
-
-func addNewTrades(newTrades []Trade) error {
-	var add int
-
-	for _, newTrade := range newTrades {
-		for _, existingTrade := range Trades {
-			// existing trades are not accepted
-			if hasMatchingWord(newTrade.Name, existingTrade.Name) &&
-				(newTrade.Ticker == existingTrade.Ticker) &&
-				(newTrade.Type == existingTrade.Type) &&
-				(newTrade.Date == existingTrade.Date) &&
-				(newTrade.Filed == existingTrade.Filed) {
-				continue
-			}
-			// empty fileds are not accepted
-			if newTrade == existingTrade {
-				continue
-			}
-			if newTrade.Ticker == "" {
-				continue
-			}
-			if newTrade.Type == "" {
-				continue
-			}
-			if newTrade.Date == "" {
-				continue
-			}
-			if newTrade.Filed == "" {
-				continue
-			}
-		}
-		Trades = append(Trades, newTrade)
-		add++
-	}
-
-	if add == 0 {
-		if verbose {
-			log.Printf("no new trades.\n")
-		}
-		return nil
-	}
-
-	if err := utils.WriteJSON(FILE_TRADES, Trades); err != nil {
-		return fmt.Errorf("failed to write unique trades to JSON: %w", err)
-	}
-	log.Printf("updated %s with %d new trades.\n", FILE_TRADES, add)
-
-	return nil
-}
-
-func hasMatchingWord(new, old string) bool {
-	if new == "" || old == "" {
-		return false
-	}
-	newWords := strings.Fields(new)
-	existingWords := strings.Fields(old)
-
-	for _, newWord := range newWords {
-		for _, existingWord := range existingWords {
-			if newWord == existingWord {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func PrintTrades(trades []Trade) string {
@@ -202,3 +131,56 @@ func PrintTrades(trades []Trade) string {
 	}
 	return output
 }
+
+func checkTrades(Trades []Trade) []Trade {
+	var count int
+	var trades []Trade
+
+	for _, newTrade := range Trades {
+		// empty fileds are not accepted
+		if newTrade.Ticker == "" {
+			count++
+			continue
+		}
+		if newTrade.Type == "" {
+			count++
+			continue
+		}
+		if newTrade.Date == "" {
+			count++
+			continue
+		}
+		if newTrade.Filed == "" {
+			count++
+			continue
+		}
+		trades = append(trades, newTrade)
+	}
+
+	if count == 0 {
+		return Trades
+	}
+
+	if verbose {
+		log.Printf("removed 3 trades has bad gemini data.\n")
+	}
+
+	return trades
+}
+
+// func hasMatchingWord(new, old string) bool {
+// 	if new == "" || old == "" {
+// 		return false
+// 	}
+// 	newWords := strings.Fields(new)
+// 	existingWords := strings.Fields(old)
+
+// 	for _, newWord := range newWords {
+// 		for _, existingWord := range existingWords {
+// 			if newWord == existingWord {
+// 				return true
+// 			}
+// 		}
+// 	}
+// 	return false
+// }
