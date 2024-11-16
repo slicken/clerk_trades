@@ -22,9 +22,7 @@ type Trade struct {
 	Cap    bool   `json:"Cap"`
 }
 
-var (
-	verbose bool
-)
+var verbose bool
 
 func SetVerbose(v bool) {
 	verbose = v
@@ -96,7 +94,7 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 	strTrades := PrintTrades(Trades)
 	log.Print("\r\n", strTrades)
 
-	Trades = checkTrades(Trades)
+	// Trades = checkTrades(Trades)
 
 	if verbose {
 		log.Printf("%d trades in %d reports.\n", len(Trades), len(links))

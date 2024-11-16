@@ -17,8 +17,6 @@ import (
 	"time"
 )
 
-var links []string
-
 func usage(code int) {
 	fmt.Printf(`CLERK TRADES - U.S. Government Official Financial Report Tracker
 Usage: %s [<ticker_duration> | <list>] [OPTIONS]
@@ -29,7 +27,8 @@ Arguments:
                      Only accepts 'h' for hours before the integer.
                      If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
-                     (type=int). This argument must be greater than 0.
+                     (type=int). This argument must be betweengreater than
+					 0 but less that 6.
                      If used, the program will exit after printing.
 
 Note: Only one of these two arguments may be provided at a time.
@@ -105,7 +104,7 @@ func main() {
 		}
 	}
 
-	if update == 0 && listReports == 0 || update != 0 && listReports != 0 {
+	if update == 0 && listReports > 5 || update != 0 && listReports != 0 {
 		usage(1)
 	}
 	if verbose {
@@ -115,11 +114,6 @@ func main() {
 	}
 	if mail {
 		log.Printf("trades will be sent to %s.\n", emailAddress)
-	}
-
-	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
-	if verbose {
-		log.Printf("loaded %d reports.\n", len(links))
 	}
 
 	if update != 0 {
@@ -165,6 +159,12 @@ func main() {
 func checkReports(update time.Duration, listReports int) error {
 	var err error
 	var files []string
+	var links []string
+
+	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
+	if verbose {
+		log.Printf("loaded %d reports.\n", len(links))
+	}
 
 	if update != 0 {
 		log.Println("checking for new reports.")
@@ -173,19 +173,19 @@ func checkReports(update time.Duration, listReports int) error {
 			return err
 		}
 	} else {
-		if verbose {
-			log.Println("application ticker is disabled.")
+		if len(links) == 0 {
+			log.Fatalln("no report links stored. run program with updater first, to links from clerk site.")
 		}
 		files = links
-	}
-
-	if listReports > 0 {
-		if len(files) > listReports {
-			files = files[len(files)-listReports:] // Keep only the last listReports files
-			if verbose {
-				log.Printf("allocating space for %d files in memory for later processing.\n", len(files))
+		if listReports > 0 {
+			if len(files)-1 >= listReports {
+				files = files[len(files)-listReports:] // Keep only the last listReports files
 			}
 		}
+	}
+
+	if len(files) > 0 {
+		log.Printf("allocating space for %d report in memory for processing.\n", len(files))
 	}
 
 	var fileContent [][]byte
@@ -199,7 +199,7 @@ func checkReports(update time.Duration, listReports int) error {
 
 			content, err := fetchFileContent(file)
 			if err != nil {
-				log.Printf("failed to fetch content for file %s: %v\n", file, err)
+				log.Printf("failed to fetch content for report %s: %v\n", file, err)
 				return
 			}
 

@@ -18,9 +18,7 @@ const (
 	FILE_LINKS = "links.json"
 )
 
-var (
-	verbose bool
-)
+var verbose bool
 
 func SetVerbose(v bool) {
 	verbose = v
