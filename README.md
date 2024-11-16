@@ -26,7 +26,8 @@ Arguments:
                      Only accepts 'h' for hours before the integer.
                      If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
-                     (type=int). This argument must be greater than 0.
+                     (type=int). This argument must be greater than
+                     0 but less that 6.
                      If used, the program will exit after printing.
 
 Note: Only one of these two arguments may be provided at a time.
