@@ -9,11 +9,10 @@ go run github.com/playwright-community/playwright-go/cmd/playwright@latest insta
 # Or
 go install github.com/playwright-community/playwright-go/cmd/playwright@latest
 playwright install --with-deps
-
+```
 if you want the trades to be email to you and your friends you can create a free gunmail account
 on www.gunmail.com.
 edit the gunmail.config file to enable this future
-```
 <br>
 
 ## Usage
