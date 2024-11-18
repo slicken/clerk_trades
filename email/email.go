@@ -5,72 +5,200 @@ import (
 	"bytes"
 	"clerk_trades/gemini"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
+	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mailgun/mailgun-go/v4"
 
 	"html/template"
 )
 
-const (
-	emailDomain = "your.mailgun.org"
-)
+const configFile = "mailgun.config"
 
-var (
-	mg     *mailgun.MailgunImpl
-	apiKey string
-)
-
-func Init() error {
-	apiKey = os.Getenv("MAILGUN_API_KEY")
-	if apiKey == "" {
-		return fmt.Errorf("MAILGUN_API_KEY environment variable is not set")
-	}
-	mg = mailgun.NewMailgun(emailDomain, apiKey)
-	return nil
+type MailGun struct {
+	APIKey  string
+	Domain  string
+	EmailTo []string
+	Paid    bool
+	*mailgun.MailgunImpl
 }
 
-func SendMail(to string, body string) error {
-	m := mg.NewMessage(
-		"clerk trades <mailgun@"+emailDomain+">",
-		"TRADES",
-		body,
-		to,
-	)
-	m.AddRecipient(to)
-	ctx := context.Background()
-	_, _, err := mg.Send(ctx, m)
+var Mailgun = &MailGun{}
+
+// load mailgun and its settings from config file
+func LoadMailGun() error {
+	file, err := os.Open(configFile)
 	if err != nil {
-		return fmt.Errorf("failed to send email: %v", err)
+		return fmt.Errorf("failed to open config file: %w", err)
 	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid line format: %s", line)
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "MAILGUN_API_KEY":
+			Mailgun.APIKey = value
+		case "MAILGUN_DOMAIN":
+			Mailgun.Domain = value
+		case "MAILGUN_EMAIL_TO":
+			Mailgun.EmailTo = strings.Split(value, ",")
+			var validEmails []string
+			for _, email := range Mailgun.EmailTo {
+				email = strings.TrimSpace(email)
+				if email != "" && strings.Contains(email, "@") {
+					validEmails = append(validEmails, email)
+				}
+			}
+			Mailgun.EmailTo = validEmails
+		case "MAILGUN_PAID":
+			if value == "true" {
+				Mailgun.Paid = true
+			} else {
+				Mailgun.Paid = false
+			}
+		default:
+			return fmt.Errorf("unknown key: %s", key)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	if len(Mailgun.EmailTo) == 0 {
+		return fmt.Errorf("no emails in to send trade reports to")
+	}
+
+	if Mailgun.Domain == "" || Mailgun.APIKey == "" {
+		return fmt.Errorf("missing required fields in config")
+	}
+	Mailgun.MailgunImpl = mailgun.NewMailgun(Mailgun.Domain, Mailgun.APIKey)
+	// Mailgun.SetAPIBase(mailgun.APIBaseEU)
+
+	return addEmailsToMailingList(Mailgun.EmailTo...)
+}
+
+// create mailing list
+func createMailingList(ctx context.Context) error {
+	listAddress := "clerk@" + Mailgun.Domain
+
+	_, err := Mailgun.GetMailingList(ctx, listAddress)
+	if err == nil {
+		return nil // alredy exists
+	}
+
+	// If the list doesn't exist, create it
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		_, err = Mailgun.CreateMailingList(ctx, mailgun.MailingList{
+			Address:     listAddress,
+			Name:        "clerk",
+			Description: "clerk application",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create mailing list: %w", err)
+		}
+
+		log.Println("clerk mailing list mailgun created successfully")
+		return nil
+	}
+
+	return fmt.Errorf("failed to check mailing list: %w", err)
+}
+
+// add emails to mailing list
+func addEmailsToMailingList(emails ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	err := createMailingList(ctx)
+	if err != nil {
+		return err
+	}
+	var members []interface{}
+	for _, email := range emails {
+		members = append(members, mailgun.Member{
+			Address: email,
+		})
+	}
+
+	upsert := true
+	err = Mailgun.CreateMemberList(ctx, &upsert, "clerk@"+Mailgun.Domain, members)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func SendHTML(to string, body string) error {
-	m := mg.NewMessage(
-		"clerk trades <mailgun@"+emailDomain+">", // From
+// send emails to mailing list (non-paid account)
+func SendHTMLTo(body string) error {
+	ctx := context.Background()
+	it := Mailgun.ListMembers("clerk@"+Mailgun.Domain, nil)
+
+	var members []mailgun.Member
+	for it.Next(ctx, &members) {
+		for _, member := range members {
+			m := Mailgun.NewMessage(
+				"clerk trades <mailgun@"+Mailgun.Domain+">", // From
+				"TRADES", // Subject
+				"",       // Body
+			)
+			// Set the HTML body
+			m.SetHtml(body)
+			m.AddRecipient(member.Address)
+
+			_, _, err := Mailgun.Send(ctx, m)
+			if err != nil {
+				return fmt.Errorf("failed to send email: %v", err)
+			}
+		}
+	}
+
+	if it.Err() != nil {
+		return it.Err()
+	}
+
+	return nil
+}
+
+// send emails to mailing list (paid account)
+func SendHTMLToMailingList(body string) error {
+	listAddress := "clerk@" + Mailgun.Domain
+
+	m := Mailgun.NewMessage(
+		"clerk trades <mailgun@"+Mailgun.Domain+">", // From
 		"TRADES", // Subject
-		"",       // Plain-text body (empty in this case)
-		to,       // Recipient
+		"",       // Body
 	)
 	// Set the HTML body
 	m.SetHtml(body)
-
-	m.AddRecipient(to)
+	m.AddRecipient(listAddress)
 
 	ctx := context.Background()
-	_, _, err := mg.Send(ctx, m)
+	_, _, err := Mailgun.Send(ctx, m)
 	if err != nil {
 		return fmt.Errorf("failed to send email: %v", err)
 	}
 	return nil
 }
 
+// generate html body
 func GenerateEmailBody(trades []gemini.Trade) (string, error) {
 	tmpl := `
 		<!DOCTYPE html>
@@ -134,136 +262,22 @@ func GenerateEmailBody(trades []gemini.Trade) (string, error) {
 	return emailBody, nil
 }
 
-type MailgunConfig struct {
-	APIKey    string
-	Domain    string
-	EmailList []string
-}
+// func ListEmailsInMailingList() error {
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+// 	defer cancel()
 
-var Mailgun = &MailgunConfig{}
+// 	it := Mailgun.ListMembers("clerk@"+Mailgun.Domain, nil)
 
-func LoadMailgunConfig() error {
-	file, err := os.Open("mailgun.config")
-	if err != nil {
-		return fmt.Errorf("failed to open config file: %w", err)
-	}
-	defer file.Close()
+// 	var members []mailgun.Member
+// 	for it.Next(ctx, &members) {
+// 		for _, member := range members {
+// 			fmt.Println(member.Address)
+// 		}
+// 	}
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
+// 	if it.Err() != nil {
+// 		return it.Err()
+// 	}
 
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid line format: %s", line)
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		switch key {
-		case "MAILGUN_API_KEY":
-			Mailgun.APIKey = value
-		case "MAILGUN_DOMAIN":
-			Mailgun.Domain = value
-		case "MAILGUN_EMAIL_LIST":
-			Mailgun.EmailList = strings.Split(value, ",")
-		default:
-			return fmt.Errorf("unknown key: %s", key)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	mg = mailgun.NewMailgun(Mailgun.Domain, Mailgun.APIKey)
-
-	for _, email := range Mailgun.EmailList {
-		if err := checkAndAddEmail(email); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func checkAndAddEmail(to string) error {
-	ctx := context.Background()
-
-	mailingList, err := mg.GetMailingList(ctx, Mailgun.Domain)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve mailing list from Mailgun: %w", err)
-	}
-
-	members, err := listMailingListMembers(ctx, mailingList.Address)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve members from mailing list: %w", err)
-	}
-
-	for _, member := range members {
-		if strings.EqualFold(member.Address, to) {
-			return nil
-		}
-	}
-
-	err = addMailingListMember(ctx, mailingList.Address, to)
-	if err != nil {
-		return fmt.Errorf("failed to add email to mailing list: %w", err)
-	}
-
-	return nil
-}
-
-func listMailingListMembers(ctx context.Context, address string) ([]mailgun.Member, error) {
-	apiURL := fmt.Sprintf("https://api.mailgun.net/v3/lists/%s/members", address)
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth("api", apiKey)
-
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var membersResponse struct {
-		Members []mailgun.Member `json:"items"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&membersResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	return membersResponse.Members, nil
-}
-
-func addMailingListMember(ctx context.Context, address string, email string) error {
-	apiURL := fmt.Sprintf("https://api.mailgun.net/v3/lists/%s/members", address)
-	data := url.Values{}
-	data.Set("address", email)
-
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return err
-	}
-	req.SetBasicAuth("api", apiKey)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to add member: %s", resp.Status)
-	}
-
-	return nil
-}
+// 	return nil
+// }

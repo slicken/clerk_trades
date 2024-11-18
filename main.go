@@ -34,10 +34,8 @@ Arguments:
 Note: Only one of these two arguments may be provided at a time.
 
 OPTIONS:
-  -e=<your@email.com>, --email=<your@email.com>
-                     Email trades result to specified email address.
-                     You will recive a email first where you must give mailgun
-                     permission to send email to email adress.
+  -e, --email        Enable email notifications for trade results via Mailgun. 
+                     Configure settings in 'gunmail.config' to activate.
   --log              Save logs to file.
   -v, --verbose      Enable verbose output for detailed logging and information.
   -h, --help         Display this help menu.
@@ -46,9 +44,8 @@ OPTIONS:
 }
 
 var (
-	verbose      bool
-	mail         bool
-	emailAddress string
+	verbose bool
+	mail    bool
 )
 
 func main() {
@@ -72,23 +69,32 @@ func main() {
 			log.SetOutput(io.MultiWriter(os.Stderr, logFile))
 			log.Printf("successfully created logfile %q.\n", logFile.Name())
 
-		case strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "email="):
-			emailPrefix := ""
-			if strings.HasPrefix(v, "-e=") {
-				emailPrefix = "-e="
-			} else if strings.HasPrefix(v, "--email=") {
-				emailPrefix = "--email="
-			} else {
-				emailPrefix = "email="
-			}
-			emailAddress = strings.TrimPrefix(v, emailPrefix)
-			if !strings.Contains(emailAddress, "@") {
-				log.Fatalln("error: invalid email address, must contain '@'")
-			}
-			if err := email.Init(); err != nil {
-				log.Fatalln("error:", err)
+		case v == "-e" || v == "--email" || v == "email":
+			log.Printf("loading Mailgun settings..")
+			err := email.LoadMailGun()
+			if err != nil {
+				log.Fatalln(err)
 			}
 			mail = true
+			log.Printf("results will be sent to %v\n", email.Mailgun.EmailTo)
+
+			// case strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "email="):
+			// 	emailPrefix := ""
+			// 	if strings.HasPrefix(v, "-e=") {
+			// 		emailPrefix = "-e="
+			// 	} else if strings.HasPrefix(v, "--email=") {
+			// 		emailPrefix = "--email="
+			// 	} else {
+			// 		emailPrefix = "email="
+			// 	}
+			// 	emailAddress = strings.TrimPrefix(v, emailPrefix)
+			// 	if !strings.Contains(emailAddress, "@") {
+			// 		log.Fatalln("error: invalid email address, must contain '@'")
+			// 	}
+			// 	if err := email.Init(); err != nil {
+			// 		log.Fatalln("error:", err)
+			// 	}
+			// 	mail = true
 
 		default:
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -104,16 +110,14 @@ func main() {
 		}
 	}
 
-	if update == 0 && listReports > 5 || update != 0 && listReports != 0 {
+	if update == 0 && (listReports > 5 || listReports <= 0) || update != 0 && listReports != 0 {
 		usage(1)
 	}
+
 	if verbose {
 		log.Println("verbose is active.")
 		gemini.SetVerbose(true)
 		clerk.SetVerbose(true)
-	}
-	if mail {
-		log.Printf("trades will be sent to %s.\n", emailAddress)
 	}
 
 	if update != 0 {
@@ -185,7 +189,7 @@ func checkReports(update time.Duration, listReports int) error {
 	}
 
 	if len(files) > 0 {
-		log.Printf("allocating space for %d report in memory for processing.\n", len(files))
+		log.Printf("allocating space for %d report in memory.\n", len(files))
 	}
 
 	var fileContent [][]byte
@@ -226,11 +230,17 @@ func checkReports(update time.Duration, listReports int) error {
 		if err != nil {
 			return err
 		}
-		if err := email.SendHTML(emailAddress, emailBody); err != nil {
-			return err
+		if email.Mailgun.Paid {
+			if err := email.SendHTMLToMailingList(emailBody); err != nil {
+				return err
+			}
+		} else {
+			if err := email.SendHTMLTo(emailBody); err != nil {
+				return err
+			}
 		}
 		if verbose {
-			log.Printf("trade reports have been sent to %v.\n", emailAddress)
+			log.Println("trade reports have been e-mailed.")
 		}
 	}
 
