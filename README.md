@@ -1,4 +1,4 @@
-# clerk_trades - Unofficial !!UNDER WORK!!
+# clerk_trades
 This program lists trades made by U.S. government officials.
 The financial reports official documents that the program scape fom [https://disclosures-clerk.house.gov/FinancialDisclosure](https://disclosures-clerk.house.gov/FinancialDisclosure) and then read by Google Gemini.
 
