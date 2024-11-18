@@ -3,14 +3,16 @@ This program lists trades made by U.S. government officials.
 The financial reports official documents that the program scape fom [https://disclosures-clerk.house.gov/FinancialDisclosure](https://disclosures-clerk.house.gov/FinancialDisclosure) and then read by Google Gemini.
 
 ## Prepare
-edit email/email.go and set your mailgun domain, if you want to use email future
-
 install the package Playwright browsers and OS dependencies
 ```
 go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps
 # Or
 go install github.com/playwright-community/playwright-go/cmd/playwright@latest
 playwright install --with-deps
+
+if you want the trades to be email to you and your friends you can create a free gunmail account
+on www.gunmail.com.
+edit the gunmail.config file to enable this future
 ```
 <br>
 
@@ -33,16 +35,10 @@ Arguments:
 Note: Only one of these two arguments may be provided at a time.
 
 OPTIONS:
-  -e=<your@email.com>, --email=<your@email.com>
-                     Email trades result to specified email address.
-                     You will recive a email first where you must give mailgun
-                     permission to send email to email adress.
+  -e, --email        Enable email notifications for trade results via Mailgun. 
+                     Configure settings in 'gunmail.config' to activate.
   --log              Save logs to file.
   -v, --verbose      Enable verbose output for detailed logging and information.
   -h, --help         Display this help menu.
 ```
 <br>
-## Todo
-implement mailgun.config file where you can set your domain name and maby api key and
-email adresses to mail when we find new trades.
-
