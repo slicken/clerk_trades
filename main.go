@@ -28,7 +28,7 @@ Arguments:
                      If not specified, it will not check for new reports.
   list               Specify the number of reports to list their trades.
                      (type=int). This argument must be betweengreater than
-					 0 but less that 6.
+                     0 but less that 6.
                      If used, the program will exit after printing.
 
 Note: Only one of these two arguments may be provided at a time.
@@ -77,24 +77,6 @@ func main() {
 			}
 			mail = true
 			log.Printf("results will be sent to %v\n", email.Mailgun.EmailTo)
-
-			// case strings.HasPrefix(v, "-e=") || strings.HasPrefix(v, "--email=") || strings.HasPrefix(v, "email="):
-			// 	emailPrefix := ""
-			// 	if strings.HasPrefix(v, "-e=") {
-			// 		emailPrefix = "-e="
-			// 	} else if strings.HasPrefix(v, "--email=") {
-			// 		emailPrefix = "--email="
-			// 	} else {
-			// 		emailPrefix = "email="
-			// 	}
-			// 	emailAddress = strings.TrimPrefix(v, emailPrefix)
-			// 	if !strings.Contains(emailAddress, "@") {
-			// 		log.Fatalln("error: invalid email address, must contain '@'")
-			// 	}
-			// 	if err := email.Init(); err != nil {
-			// 		log.Fatalln("error:", err)
-			// 	}
-			// 	mail = true
 
 		default:
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
