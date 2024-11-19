@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"clerk_trades/gemini"
+	"clerk_trades/utils"
 	"context"
 	"fmt"
 	"log"
@@ -80,18 +81,64 @@ func LoadMailGun() error {
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
-
 	if len(Mailgun.EmailTo) == 0 {
 		return fmt.Errorf("no emails in to send trade reports to")
 	}
-
 	if Mailgun.Domain == "" || Mailgun.APIKey == "" {
 		return fmt.Errorf("missing required fields in config")
 	}
-	Mailgun.MailgunImpl = mailgun.NewMailgun(Mailgun.Domain, Mailgun.APIKey)
-	// Mailgun.SetAPIBase(mailgun.APIBaseEU)
 
+	Mailgun.MailgunImpl = mailgun.NewMailgun(Mailgun.Domain, Mailgun.APIKey)
 	return addEmailsToMailingList(Mailgun.EmailTo...)
+}
+
+// add emails to mailing list
+func addEmailsToMailingList(emails ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	err := createMailingList(ctx)
+	if err != nil {
+		return err
+	}
+
+	var members []interface{}
+	for _, email := range emails {
+		members = append(members, mailgun.Member{
+			Address: email,
+		})
+	}
+
+	listAddress := "clerk@" + Mailgun.Domain
+
+	upsert := true
+	err = Mailgun.CreateMemberList(ctx, &upsert, listAddress, members)
+	if err != nil {
+		return err
+	}
+
+	// delete members
+	var allMembers []mailgun.Member
+
+	it := Mailgun.ListMembers(listAddress, nil)
+	for it.Next(ctx, &allMembers) {
+		for _, member := range allMembers {
+			if !utils.Contains(emails, member.Address) {
+
+				err := Mailgun.DeleteMember(ctx, member.Address, listAddress)
+				if err != nil {
+					return fmt.Errorf("failed to unsubscribe %s: %v", member.Address, err)
+				}
+				log.Printf("unsubscribed: %s from mailing list", member.Address)
+			}
+		}
+	}
+
+	if it.Err() != nil {
+		return it.Err()
+	}
+
+	return nil
 }
 
 // create mailing list
@@ -121,31 +168,6 @@ func createMailingList(ctx context.Context) error {
 	return fmt.Errorf("failed to check mailing list: %w", err)
 }
 
-// add emails to mailing list
-func addEmailsToMailingList(emails ...string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	err := createMailingList(ctx)
-	if err != nil {
-		return err
-	}
-	var members []interface{}
-	for _, email := range emails {
-		members = append(members, mailgun.Member{
-			Address: email,
-		})
-	}
-
-	upsert := true
-	err = Mailgun.CreateMemberList(ctx, &upsert, "clerk@"+Mailgun.Domain, members)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // send emails to mailing list (non-paid account)
 func SendHTMLTo(body string) error {
 	ctx := context.Background()
@@ -159,7 +181,6 @@ func SendHTMLTo(body string) error {
 				"TRADES", // Subject
 				"",       // Body
 			)
-			// Set the HTML body
 			m.SetHtml(body)
 			m.AddRecipient(member.Address)
 
@@ -186,7 +207,6 @@ func SendHTMLToMailingList(body string) error {
 		"TRADES", // Subject
 		"",       // Body
 	)
-	// Set the HTML body
 	m.SetHtml(body)
 	m.AddRecipient(listAddress)
 
@@ -261,23 +281,3 @@ func GenerateEmailBody(trades []gemini.Trade) (string, error) {
 	emailBody := emailBodyBuffer.String()
 	return emailBody, nil
 }
-
-// func ListEmailsInMailingList() error {
-// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-// 	defer cancel()
-
-// 	it := Mailgun.ListMembers("clerk@"+Mailgun.Domain, nil)
-
-// 	var members []mailgun.Member
-// 	for it.Next(ctx, &members) {
-// 		for _, member := range members {
-// 			fmt.Println(member.Address)
-// 		}
-// 	}
-
-// 	if it.Err() != nil {
-// 		return it.Err()
-// 	}
-
-// 	return nil
-// }
