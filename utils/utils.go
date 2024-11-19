@@ -48,9 +48,10 @@ func WriteJSON[T any](file string, data T) error {
 	return nil
 }
 
-func Contains(slice []string, target string) bool {
+// Helper function to check if a string exists in the slice
+func Contains(slice []string, str string) bool {
 	for _, v := range slice {
-		if v == target {
+		if v == str {
 			return true
 		}
 	}
