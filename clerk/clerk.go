@@ -24,7 +24,7 @@ func SetVerbose(v bool) {
 	verbose = v
 }
 
-func SiteCheck(links []string) ([]string, error) {
+func SiteCheck(links []string, name string) ([]string, error) {
 	var newLinks []string
 
 	pw, err := playwright.Run()
@@ -105,6 +105,17 @@ func SiteCheck(links []string) ([]string, error) {
 			if err != nil {
 				log.Printf("failed to find link in row on page %d: %v", pageNum, err)
 				continue
+			}
+
+			if name != "" {
+				fullName, err := linkElement.InnerText()
+				if err != nil {
+					log.Println("Error extracting fullName:", err)
+					continue
+				}
+				if !strings.Contains(fullName, name) {
+					continue
+				}
 			}
 
 			href, err := linkElement.GetAttribute("href")

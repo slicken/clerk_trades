@@ -34,6 +34,7 @@ Arguments:
 Note: Only one of these two arguments may be provided at a time.
 
 OPTIONS:
+  -n <name>          List reports of a specific person.
   -e, --email        Enable email notifications for trade results via Mailgun. 
                      Configure settings in 'gunmail.config' to activate.
   --log              Save logs to file.
@@ -46,21 +47,24 @@ OPTIONS:
 var (
 	verbose bool
 	mail    bool
+	name    string
 )
 
 func main() {
 	var update time.Duration
 	var listReports int
 
-	for _, v := range os.Args[1:] {
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+
 		switch {
-		case v == "-h" || v == "--help" || v == "help":
+		case arg == "-h" || arg == "--help" || arg == "help":
 			usage(0)
 
-		case v == "-v" || v == "--verbose" || v == "verbose":
+		case arg == "-v" || arg == "--verbose" || arg == "verbose":
 			verbose = true
 
-		case v == "--log":
+		case arg == "--log":
 			logName := time.Now().Format("01021504") + ".log"
 			logFile, err := os.Create(logName)
 			if err != nil {
@@ -69,7 +73,7 @@ func main() {
 			log.SetOutput(io.MultiWriter(os.Stderr, logFile))
 			log.Printf("successfully created logfile %q.\n", logFile.Name())
 
-		case v == "-e" || v == "--email" || v == "email":
+		case arg == "-e" || arg == "--email" || arg == "email":
 			log.Printf("loading Mailgun settings..")
 			err := email.LoadMailGun()
 			if err != nil {
@@ -78,16 +82,26 @@ func main() {
 			mail = true
 			log.Printf("results will be sent to %v\n", email.Mailgun.EmailTo)
 
+		case strings.HasPrefix(arg, "-n"):
+			if strings.Contains(arg, "=") {
+				name = strings.SplitN(arg, "=", 2)[1]
+			} else if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") {
+				name = os.Args[i+1]
+				i++
+			} else {
+				log.Fatalln("error: -n flag requires a name.")
+			}
+
 		default:
-			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n, err := strconv.Atoi(arg); err == nil && n > 0 && n < 6 {
 				listReports = n
-			} else if duration, err := parseCustomDuration(v); err == nil {
+			} else if duration, err := parseCustomDuration(arg); err == nil {
 				if duration < 3*time.Hour {
 					log.Fatalln("error: minimum duration must be 3h.")
 				}
 				update = duration
 			} else {
-				log.Fatalln("error: invalid argument:", v)
+				log.Fatalln("error: invalid argument:", arg)
 			}
 		}
 	}
@@ -120,7 +134,7 @@ func main() {
 					}
 					return
 				case <-ticker.C:
-					if err := checkReports(update, listReports); err != nil {
+					if err := checkReports(update, listReports, name); err != nil {
 						log.Println("error:", err)
 					}
 				}
@@ -128,7 +142,7 @@ func main() {
 		}()
 	}
 
-	if err := checkReports(update, listReports); err != nil {
+	if err := checkReports(update, listReports, name); err != nil {
 		log.Println("error:", err)
 	}
 
@@ -142,7 +156,7 @@ func main() {
 	select {}
 }
 
-func checkReports(update time.Duration, listReports int) error {
+func checkReports(update time.Duration, listReports int, name string) error {
 	var err error
 	var files []string
 	var links []string
@@ -153,8 +167,12 @@ func checkReports(update time.Duration, listReports int) error {
 	}
 
 	if update != 0 {
-		log.Println("checking for new reports.")
-		files, err = clerk.SiteCheck(links)
+		if name != "" {
+			log.Printf("checking for new %s reports.\n", name)
+		} else {
+			log.Println("checking for new reports.")
+		}
+		files, err = clerk.SiteCheck(links, name)
 		if err != nil {
 			return err
 		}

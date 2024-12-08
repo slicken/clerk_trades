@@ -34,6 +34,7 @@ Arguments:
 Note: Only one of these two arguments may be provided at a time.
 
 OPTIONS:
+  -n <name>          List reports of a specific individual.
   -e, --email        Enable email notifications for trade results via Mailgun. 
                      Configure settings in 'gunmail.config' to activate.
   --log              Save logs to file.
