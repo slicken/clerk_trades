@@ -226,7 +226,7 @@ func GenerateEmailBody(trades []gemini.Trade) (string, error) {
 		<head>
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Trades</title>
+			<title>clerk trades</title>
 			<style>
 				table { width: 100%; border-collapse: collapse; }
 				th, td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
