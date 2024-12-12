@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	URL        = "https://disclosures-clerk.house.gov/"
-	SEARCH     = "FinancialDisclosure#Search"
-	pass       = "financial-pdfs"
-	FILE_LINKS = "links.json"
+	URL         = "https://disclosures-clerk.house.gov/"
+	SEARCH      = "FinancialDisclosure#Search"
+	pass        = "financial-pdfs"
+	FILE_LINKS  = "links.json"
+	FILE_BACKUP = ".links.json.backup"
 )
 
 var verbose bool
@@ -24,12 +25,17 @@ func SetVerbose(v bool) {
 	verbose = v
 }
 
-func SiteCheck(links []string, name string) ([]string, error) {
+func SiteCheck(links []string, name string) ([]string, error, bool) {
 	var newLinks []string
+	var loop bool
 
 	pw, err := playwright.Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to start Playwright: %v", err)
+		log.Fatalln(`failed to start Playwright. install/update with
+go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps
+or
+go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+playwright install --with-deps`)
 	}
 	defer pw.Stop()
 
@@ -37,18 +43,18 @@ func SiteCheck(links []string, name string) ([]string, error) {
 		Headless: playwright.Bool(true),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to launch browser: %v", err)
+		return nil, fmt.Errorf("failed to launch browser: %v", err), false
 	}
 	defer browser.Close()
 
 	page, err := browser.NewPage()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create page: %v", err)
+		return nil, fmt.Errorf("failed to create page: %v", err), false
 	}
 
 	_, err = page.Goto(URL + SEARCH)
 	if err != nil {
-		return nil, fmt.Errorf("failed to go to URL: %v", err)
+		return nil, fmt.Errorf("failed to go to URL: %v", err), false
 	}
 
 	// select the current year
@@ -58,27 +64,27 @@ func SiteCheck(links []string, name string) ([]string, error) {
 		Values: &[]string{thisYear},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to select Filing Year %s: %v", thisYear, err)
+		return nil, fmt.Errorf("failed to select Filing Year %s: %v", thisYear, err), false
 	}
 
 	// click search form and wait for result table
 	if err := page.Click(`button[aria-label="search button"]`); err != nil {
-		return nil, fmt.Errorf("failed to click search button: %v", err)
+		return nil, fmt.Errorf("failed to click search button: %v", err), false
 	}
 	if _, err = page.WaitForSelector(`#DataTables_Table_0`, playwright.PageWaitForSelectorOptions{
 		State: playwright.WaitForSelectorStateVisible,
 	}); err != nil {
-		return nil, fmt.Errorf("failed to wait for results table to load: %v", err)
+		return nil, fmt.Errorf("failed to wait for results table to load: %v", err), false
 	}
 
 	// get number of pages
 	lastPaginationButtonText, err := page.Locator(`.paginate_button:not(.ellipsis):not(.next):last-child`).InnerText()
 	if err != nil {
-		return nil, fmt.Errorf("failed to find the last pagination button: %v", err)
+		return nil, fmt.Errorf("failed to find the last pagination button: %v", err), false
 	}
 	pageCount, err := strconv.Atoi(lastPaginationButtonText)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert page count to integer: %v", err)
+		return nil, fmt.Errorf("failed to convert page count to integer: %v", err), false
 	}
 
 	if verbose {
@@ -91,13 +97,13 @@ func SiteCheck(links []string, name string) ([]string, error) {
 		if _, err := page.WaitForSelector(`#DataTables_Table_0`, playwright.PageWaitForSelectorOptions{
 			State: playwright.WaitForSelectorStateVisible,
 		}); err != nil {
-			return nil, fmt.Errorf("failed to wait for results table on page %d: %v", pageNum, err)
+			return nil, fmt.Errorf("failed to wait for results table on page %d: %v", pageNum, err), loop
 		}
 
 		// Scrape the rows
 		rows, err := page.QuerySelectorAll(`#DataTables_Table_0 tbody tr`)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query table rows on page %d: %v", pageNum, err)
+			return nil, fmt.Errorf("failed to query table rows on page %d: %v", pageNum, err), loop
 		}
 
 		for _, row := range rows {
@@ -134,6 +140,12 @@ func SiteCheck(links []string, name string) ([]string, error) {
 			}
 		}
 
+		if len(newLinks) > 5 {
+			newLinks = newLinks[:5]
+			loop = true
+			break
+		}
+
 		if pageNum >= pageCount {
 			break
 		}
@@ -163,10 +175,10 @@ func SiteCheck(links []string, name string) ([]string, error) {
 		links = append(links, newLinks...)
 		err = utils.WriteJSON[[]string](FILE_LINKS, links)
 		if err != nil {
-			return links, err
+			return links, err, loop
 		}
 		log.Printf("updated %s. contains %d reports.\n", FILE_LINKS, len(links))
 	}
 
-	return newLinks, nil
+	return newLinks, nil, loop
 }

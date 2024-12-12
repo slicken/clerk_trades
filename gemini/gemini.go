@@ -1,8 +1,8 @@
 package gemini
 
 import (
+	"clerk_trades/utils"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -86,8 +86,8 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no output data from gemini")
 	}
-	if err := json.Unmarshal([]byte(out), &Trades); err != nil {
-		return nil, fmt.Errorf("failed to unmarshalling JSON: %v, output: %s", err, out)
+	if err := utils.SafeUnmarshal(out, &Trades); err != nil {
+		log.Fatalf("safe unmarshal failed: %v", err)
 	}
 
 	// print trades
@@ -95,7 +95,6 @@ Rule2: in Type field (Transaction Type): if "P" input "Purchase", if "S" input "
 	log.Print("\r\n", strTrades)
 
 	// Trades = checkTrades(Trades)
-
 	if verbose {
 		log.Printf("%d trades in %d reports.\n", len(Trades), len(links))
 	}
@@ -130,41 +129,41 @@ func PrintTrades(trades []Trade) string {
 	return output
 }
 
-func checkTrades(Trades []Trade) []Trade {
-	var count int
-	var trades []Trade
+// func checkTrades(Trades []Trade) []Trade {
+// 	var count int
+// 	var trades []Trade
 
-	for _, newTrade := range Trades {
-		// empty fileds are not accepted
-		if newTrade.Ticker == "" {
-			count++
-			continue
-		}
-		if newTrade.Type == "" {
-			count++
-			continue
-		}
-		if newTrade.Date == "" {
-			count++
-			continue
-		}
-		if newTrade.Filed == "" {
-			count++
-			continue
-		}
-		trades = append(trades, newTrade)
-	}
+// 	for _, newTrade := range Trades {
+// 		// empty fileds are not accepted
+// 		if newTrade.Ticker == "" {
+// 			count++
+// 			continue
+// 		}
+// 		if newTrade.Type == "" {
+// 			count++
+// 			continue
+// 		}
+// 		if newTrade.Date == "" {
+// 			count++
+// 			continue
+// 		}
+// 		if newTrade.Filed == "" {
+// 			count++
+// 			continue
+// 		}
+// 		trades = append(trades, newTrade)
+// 	}
 
-	if count == 0 {
-		return Trades
-	}
+// 	if count == 0 {
+// 		return Trades
+// 	}
 
-	if verbose {
-		log.Printf("removed 3 trades has bad gemini data.\n")
-	}
+// 	if verbose {
+// 		log.Printf("removed 3 trades has bad gemini data.\n")
+// 	}
 
-	return trades
-}
+// 	return trades
+// }
 
 // func hasMatchingWord(new, old string) bool {
 // 	if new == "" || old == "" {

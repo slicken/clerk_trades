@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 func ReadJSON[T any](file string) (T, error) {
@@ -56,4 +57,27 @@ func Contains(slice []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func EnsureValidJSON(input string) (string, error) {
+	input = strings.TrimSpace(input)
+	if !strings.HasSuffix(input, "}") && !strings.HasSuffix(input, "]") {
+		input = input + "}"
+	}
+	var temp interface{}
+	if err := json.Unmarshal([]byte(input), &temp); err != nil {
+		return "", fmt.Errorf("invalid JSON format: %w", err)
+	}
+	return input, nil
+}
+
+func SafeUnmarshal(out string, target interface{}) error {
+	validJSON, err := EnsureValidJSON(out)
+	if err != nil {
+		return fmt.Errorf("failed to ensure valid JSON: %v, output: %s", err, out)
+	}
+	if err := json.Unmarshal([]byte(validJSON), target); err != nil {
+		return fmt.Errorf("failed to unmarshall JSON: %v, output: %s", err, validJSON)
+	}
+	return nil
 }

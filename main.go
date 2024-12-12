@@ -11,9 +11,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -22,24 +24,24 @@ func usage(code int) {
 Usage: %s [<ticker_duration> | <list>] [OPTIONS]
 
 Arguments:
-  ticker_duration    Duration for the application ticker to check for new
-                     reports on Clerk website. Minimum 3h (e.g. 24h, 72h).
-                     Only accepts 'h' for hours before the integer.
-                     If not specified, it will not check for new reports.
-  list               Specify the number of reports to list their trades.
-                     (type=int). This argument must be betweengreater than
-                     0 but less that 6.
-                     If used, the program will exit after printing.
+  ticker_duration     Duration for the application ticker to check for new
+                      reports on Clerk website. Minimum 3h (e.g. 24h, 72h).
+                      Only accepts 'h' for hours before the integer.
+                      If not specified, it will not check for new reports.
+  list                Specify the number of reports to list their trades.
+                      (type=int). This argument must be betweengreater than
+                      0 but less that 6.
+                      If used, the program will exit after printing.
 
 Note: Only one of these two arguments may be provided at a time.
 
 OPTIONS:
-  -n <name>          List reports of a specific individual.
-  -e, --email        Enable email notifications for trade results via Mailgun. 
-                     Configure settings in 'gunmail.config' to activate.
-  --log              Save logs to file.
-  -v, --verbose      Enable verbose output for detailed logging and information.
-  -h, --help         Display this help menu.
+  -n, --name <name>   List reports of a specific individual.
+  -e, --email         Enable email notifications for trade results via Mailgun. 
+                      Configure settings in 'gunmail.config' to activate.
+  --log               Save logs to file.
+  -v, --verbose       Enable verbose output for detailed logging and information.
+  -h, --help          Display this help menu.
 `, os.Args[0])
 	os.Exit(code)
 }
@@ -82,7 +84,7 @@ func main() {
 			mail = true
 			log.Printf("results will be sent to %v\n", email.Mailgun.EmailTo)
 
-		case strings.HasPrefix(arg, "-n"):
+		case strings.HasPrefix(arg, "-n") || strings.HasPrefix(arg, "--name"):
 			if strings.Contains(arg, "=") {
 				name = strings.SplitN(arg, "=", 2)[1]
 			} else if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") {
@@ -101,9 +103,25 @@ func main() {
 				}
 				update = duration
 			} else {
+				if name != "" {
+					continue
+				}
 				log.Fatalln("error: invalid argument:", arg)
 			}
 		}
+	}
+
+	if name != "" {
+		update = time.Duration(24 * time.Hour)
+		listReports = 0
+
+		if err := copyFile(clerk.FILE_LINKS, clerk.FILE_BACKUP); err != nil {
+			log.Println("error copying file:", err)
+		}
+		if err := os.Remove(clerk.FILE_LINKS); err != nil {
+			log.Println("error removing file:", err)
+		}
+		go HandleInterrupt()
 	}
 
 	if update == 0 && (listReports > 5 || listReports <= 0) || update != 0 && listReports != 0 {
@@ -160,6 +178,7 @@ func checkReports(update time.Duration, listReports int, name string) error {
 	var err error
 	var files []string
 	var links []string
+	var loop bool
 
 	links, _ = utils.ReadJSON[[]string](clerk.FILE_LINKS)
 	if verbose {
@@ -172,7 +191,7 @@ func checkReports(update time.Duration, listReports int, name string) error {
 		} else {
 			log.Println("checking for new reports.")
 		}
-		files, err = clerk.SiteCheck(links, name)
+		files, err, loop = clerk.SiteCheck(links, name)
 		if err != nil {
 			return err
 		}
@@ -244,6 +263,12 @@ func checkReports(update time.Duration, listReports int, name string) error {
 		}
 	}
 
+	if loop {
+		defer func() {
+			go checkReports(update, listReports, name)
+		}()
+	}
+
 	return nil
 }
 
@@ -276,4 +301,38 @@ func parseCustomDuration(input string) (time.Duration, error) {
 		}
 	}
 	return 0, fmt.Errorf("invalid duration format; only hours (h) are accepted")
+}
+
+func HandleInterrupt() {
+	closeChan := make(chan os.Signal, 1)
+	signal.Notify(closeChan, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	s := <-closeChan
+	log.Printf("\n%+v recived. shutting down.\n", s)
+
+	if err := copyFile(clerk.FILE_BACKUP, clerk.FILE_LINKS); err != nil {
+		log.Println("error copying file:", err)
+	}
+	if err := os.Remove(clerk.FILE_BACKUP); err != nil {
+		log.Println("error removing file:", err)
+	}
+
+	os.Exit(0)
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
