@@ -208,7 +208,7 @@ func checkReports(update time.Duration, listReports int, name string) error {
 	}
 
 	if len(files) > 0 {
-		log.Printf("allocating space for %d report in memory.\n", len(files))
+		log.Printf("allocating space for %d reports in memory.\n", len(files))
 	}
 
 	var fileContent [][]byte

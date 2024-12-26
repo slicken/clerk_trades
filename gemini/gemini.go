@@ -44,6 +44,7 @@ func ProsessReports(fileContents [][]byte, links []string) ([]Trade, error) {
 	defer client.Close()
 
 	model := client.GenerativeModel("gemini-1.5-flash")
+	//model := client.GenerativeModel("gemini-2.0-flash-exp")
 	model.SetTemperature(0)
 	model.SetTopP(0)
 	model.SetTopK(0)

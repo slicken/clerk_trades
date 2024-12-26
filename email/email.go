@@ -234,7 +234,7 @@ func GenerateEmailBody(trades []gemini.Trade) (string, error) {
 			</style>
 		</head>
 		<body>
-			<h1>Trade List</h1>
+			<h1>Trade Disclosure by Members of the U.S. Congress</h1>
 			<table>
 				<thead>
 					<tr>
